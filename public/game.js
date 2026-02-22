@@ -21,6 +21,13 @@ async function loadSession() {
     await fetch("/api/logout", { method: "POST" });
     window.location.href = "/";
   };
+  const backBtn = document.getElementById('backToInfoBtn');
+  if (backBtn) {
+    backBtn.onclick = () => {
+      const gid = data.user.gameId;
+      window.location.href = `/gameInfo?gameId=${encodeURIComponent(gid)}`;
+    };
+  }
  
 
   myPlayerId = data.user.playerId;

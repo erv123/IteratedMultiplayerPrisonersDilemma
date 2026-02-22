@@ -2,10 +2,9 @@
   "name": "prisonersdilemma",
   "version": "1.0.0",
   "description": "",
-  "main": "index.js",
+  "main": "public/index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
-    "dev": "nodemon server.js"
+    "dev": "nodemon server/server.js"
   },
   "keywords": [],
   "author": "",
@@ -13,6 +12,7 @@
   "type": "commonjs",
   "dependencies": {
     "express": "^5.2.1",
+    "express-session": "^1.19.0",
     "sqlite3": "^5.1.7",
     "uuid": "^13.0.0"
   },

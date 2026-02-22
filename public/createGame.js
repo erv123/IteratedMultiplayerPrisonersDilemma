@@ -13,6 +13,14 @@ async function registerGame() {
   const errorChance = Number(document.getElementById("errorChance").value);
   const maxTurns = Number(document.getElementById("maxTurns").value);
   const maxPlayers = Number(document.getElementById("maxPlayers").value);
+  const username = document.getElementById("username").value.trim();
+  const password = document.getElementById("password").value;
+
+  // Validate host credentials
+  if (!username || !password) {
+    alert("Host username and password are required to create a game.");
+    return;
+  }
 
   // Validation
   if (errorChance < 0 || errorChance > 100) {
@@ -33,7 +41,9 @@ async function registerGame() {
       payoffMatrix,
       errorChance,
       maxTurns,
-      maxPlayers
+      maxPlayers,
+      username,
+      password
     }),
   });
 
@@ -41,7 +51,7 @@ async function registerGame() {
 
   if (data.success) {
     alert("Game registered!");
-    window.location.href = "/";
+    window.location.href = `/gameInfo?gameId=${encodeURIComponent(gameId)}`;
   } else {
     alert("Error creating game");
   }

@@ -3,9 +3,7 @@ const path = require("path");
 const session = require("express-session");
 const { v4: uuidv4 } = require("uuid");
 
-const gameRoutes = require("./routes/gameRoutes");
-
-const { TESTING } = require("./config");
+const gameRoutes = require("../routes/gameRoutes");
 
 const app = express();
 app.use(express.json());
@@ -15,30 +13,16 @@ app.use(express.json());
 /* ===============================
    SESSION SETUP
    =============================== */
-if (TESTING) {
-  // Testing mode: session ID can be forced via ?sid
-  app.use(
-    session({
-      secret: "07910b9a-2a1e-4a8e-84b0-f3843c8e86df",
-      resave: false,
-      saveUninitialized: true,
-      cookie: { secure: false }, // not HTTPS for testing
-      genid: function (req) {
-        return req.query.sid || uuidv4();
-      },
-    })
-  );
-} else {
-  // Safe mode: standard sessions
+
   app.use(
     session({
       secret: "09c732c9-2dc9-4ba7-a58e-cff338a68f06",
       resave: false,
       saveUninitialized: false,
-      cookie: { secure: true },
+      // only set secure cookies in production (requires HTTPS). For local dev over HTTP keep false.
+      cookie: { secure: process.env.NODE_ENV === 'production', sameSite: 'lax', path: '/' },
     })
   );
-}
 
 /* ===============================
    ROUTES
@@ -50,9 +34,13 @@ app.get("/game", (req, res) => {
   if (!req.session.user) {
     return res.redirect("/");
   }
-  res.sendFile(path.join(__dirname, "public/game.html"));
+  res.sendFile(path.join(__dirname, "..", "public", "game.html"));
 });
 
+// Serve game info page without requiring a session so users can view and log in from there
+app.get("/gameInfo", (req, res) => {
+  res.sendFile(path.join(__dirname, "..", "public", "gameInfo.html"));
+});
 /* ===============================
    SERVER START
    =============================== */

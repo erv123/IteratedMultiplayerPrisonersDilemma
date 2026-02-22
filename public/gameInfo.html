@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Game Info</title>
+</head>
+<body>
+  <h1>Game Info</h1>
+  <div>Game ID: <span id="gameIdDisplay"></span></div>
+  <div id="status"></div>
+
+  <button id="backLobbyBtn" style="margin-top:8px;">Back to Lobby</button>
+
+  <h3>Login to this game</h3>
+  <div id="loginSection">
+    <input id="gi_username" placeholder="Username">
+    <input id="gi_password" type="password" placeholder="Password">
+    <button id="loginBtn">Login / Join</button>
+  </div>
+
+  <div id="loggedInActions" style="display:none; margin-top:10px;">
+    <button id="enterGameBtn">Enter Game</button>
+    <button id="logoutBtn">Logout</button>
+  </div>
+
+  <h3>Players</h3>
+  <div id="playersList">(loading...)</div>
+
+  <script src="gameInfo.js"></script>
+</body>
+</html>

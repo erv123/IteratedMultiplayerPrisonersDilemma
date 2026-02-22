@@ -1,29 +1,4 @@
 
-async function joinGame() {
-  const gameId = document.getElementById("joinGameId").value.trim();
-  const username = document.getElementById("username").value.trim();
-  const password = document.getElementById("password").value.trim();
-
-  if (!gameId || !username || !password) {
-    alert("All fields must be filled.");
-    return;
-  }
-
-  const res = await fetch("/api/joinGame", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ gameId, username, password })
-  });
-
-  const data = await res.json();
-
-  if (data.success) {
-    window.location.href = `/game.html?gameId=${gameId}&username=${username}`;
-  } else {
-    alert(data.message);
-  }
-}
-
 
 async function fetchGameList() {
   const res = await fetch("/api/listGames");
@@ -34,7 +9,12 @@ async function fetchGameList() {
 
   data.gameIds.forEach(id => {
     const div = document.createElement("div");
-    div.textContent = id;
+    const a = document.createElement("a");
+    a.href = `gameInfo?gameId=${encodeURIComponent(id)}`;
+    a.textContent = id;
+    a.style.textDecoration = 'none';
+    a.style.color = 'blue';
+    div.appendChild(a);
     listContainer.appendChild(div);
   });
 }
@@ -52,6 +32,7 @@ async function joinGame() {
 
   const res = await fetch("/api/joinGame", {
     method: "POST",
+    credentials: 'same-origin',
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ gameId, username, password })
   });
@@ -69,3 +50,5 @@ async function joinGame() {
 if (window.location.pathname.includes("game.html")) {
   setInterval(fetchState, 2000); // Poll every 2s
 }
+
+// Lobby does not track session globally; logins are per-game on gameInfo page.

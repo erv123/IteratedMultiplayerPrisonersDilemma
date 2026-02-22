@@ -1,15 +1,32 @@
+// server/db.js
 const sqlite3 = require("sqlite3").verbose();
 const path = require("path");
+const fs = require("fs");
 
-const dbPath = path.resolve(__dirname, "database", "game.db");
+// absolute path: /project-root/database/game.db
+const dbPath = path.join(__dirname, "..", "database", "game.db");
 
-const db = new sqlite3.Database(dbPath);
+// ensure database directory exists
+fs.mkdirSync(path.dirname(dbPath), { recursive: true });
 
+const db = new sqlite3.Database(
+  dbPath,
+  sqlite3.OPEN_READWRITE | sqlite3.OPEN_CREATE,
+  (err) => {
+    if (err) {
+      console.error("Failed to open SQLite database:", err);
+    } else {
+      console.log("SQLite database opened at:", dbPath);
+    }
+  }
+);
+
+module.exports = db;
 db.serialize(() => {
   db.run(`
     CREATE TABLE IF NOT EXISTS games (
       id TEXT PRIMARY KEY,
-      stage INTEGER DEFAULT 1,
+      stage INTEGER,
       current_turn INTEGER DEFAULT 0,
       max_turns INTEGER,
       payoff_matrix TEXT,
@@ -28,6 +45,7 @@ db.serialize(() => {
       password TEXT,
       total_score INTEGER DEFAULT 0,
       ready_for_next_turn INTEGER DEFAULT 0,
+      is_host INTEGER,
       score_history TEXT
     )
   `);
