@@ -29,6 +29,7 @@ db.serialize(() => {
       stage INTEGER,
       current_turn INTEGER DEFAULT 0,
       max_turns INTEGER,
+      history_limit INTEGER DEFAULT 5,
       payoff_matrix TEXT,
       error_chance INTEGER,
       max_players INTEGER,
@@ -38,14 +39,26 @@ db.serialize(() => {
   `);
 
   db.run(`
-    CREATE TABLE IF NOT EXISTS players (
+    CREATE TABLE IF NOT EXISTS users (
+      id TEXT PRIMARY KEY,
+      username TEXT UNIQUE,
+      password TEXT,
+      is_admin INTEGER DEFAULT 0,
+      reset_bypass INTEGER DEFAULT 0,
+      last_reset_at TEXT,
+      created_at TEXT DEFAULT (datetime('now'))
+    )
+  `);
+  
+  db.run(`
+    CREATE TABLE IF NOT EXISTS participants (
       id TEXT PRIMARY KEY,
       game_id TEXT,
+      user_id TEXT,
       username TEXT,
-      password TEXT,
       total_score INTEGER DEFAULT 0,
       ready_for_next_turn INTEGER DEFAULT 0,
-      is_host INTEGER,
+      is_host INTEGER DEFAULT 0,
       score_history TEXT
     )
   `);

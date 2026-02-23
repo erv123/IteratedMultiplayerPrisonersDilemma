@@ -1,5 +1,6 @@
 const express = require("express");
 const { v4: uuidv4 } = require("uuid");
+const bcrypt = require('bcryptjs');
 const db = require("../server/db");
 const resolveTurn = require("../utils/turnResolver");
 const router = express.Router();
@@ -14,50 +15,167 @@ router.get("/listGames", (req, res) => {
     res.json({ gameIds });
   });
 });
-router.post("/register", (req, res) => {
-  const { gameId, payoffMatrix, errorChance, maxTurns, maxPlayers, username, password } = req.body;
 
-  // Require host credentials
+// utility endpoints for debugging/admin UI
+router.get('/_whoami', (req, res) => {
+  if (!req.session || !req.session.user) return res.json({ success: false });
+
+  const userId = req.session.user.userId;
+
+  db.get('SELECT id, username, is_admin, reset_bypass, last_reset_at FROM users WHERE id = ?', [userId], (err, row) => {
+    if (err) return res.status(500).json({ success: false, message: err.message });
+    if (!row) return res.json({ success: false });
+
+    res.json({
+      success: true,
+      user: {
+        id: row.id,
+        username: row.username,
+        is_admin: row.is_admin,
+        reset_bypass: row.reset_bypass,
+        last_reset_at: row.last_reset_at
+      }
+    });
+  });
+});
+
+router.get('/_listUsers', (req, res) => {
+  if (!req.session || !req.session.user) return res.status(401).json({ success: false, message: 'Not logged in' });
+  const callerId = req.session.user.userId;
+
+  db.get('SELECT is_admin FROM users WHERE id = ?', [callerId], (err, callerRow) => {
+    if (err) return res.status(500).json({ success: false, message: err.message });
+    if (!callerRow || !(callerRow.is_admin === 1 || callerRow.is_admin === '1')) {
+      return res.status(403).json({ success: false, message: 'Not authorized' });
+    }
+
+    db.all('SELECT id, username, reset_bypass FROM users', [], (e2, rows) => {
+      if (e2) return res.status(500).json({ success: false, message: e2.message });
+      res.json({ success: true, users: rows });
+    });
+  });
+});
+router.post("/register", (req, res) => {
+  const { gameId, payoffMatrix, errorChance, maxTurns, maxPlayers, historyLimit } = req.body;
+
+  const resolvedHistoryLimit = typeof historyLimit !== 'undefined' ? Number(historyLimit) : 5;
+
+  // If user is logged in via session, use session identity as host
+  if (req.session && req.session.user && req.session.user.userId) {
+    const userId = req.session.user.userId;
+    const username = req.session.user.username;
+
+    db.run(
+      `INSERT INTO games (id, stage, payoff_matrix, error_chance, max_turns, history_limit, max_players)
+       VALUES (?, 1, ?, ?, ?, ?, ?)`,
+      [
+        gameId,
+        JSON.stringify(payoffMatrix),
+        errorChance,
+        maxTurns,
+        resolvedHistoryLimit,
+        maxPlayers
+      ],
+      function (err2) {
+        if (err2) return res.status(500).json({ error: err2.message });
+
+        // create participant (host)
+        const participantId = uuidv4();
+        db.run(
+          `INSERT INTO participants (id, game_id, user_id, username, is_host, total_score, ready_for_next_turn, score_history)
+           VALUES (?, ?, ?, ?, ?, 0, 0, ?)`,
+          [participantId, gameId, userId, username, 1, JSON.stringify([])],
+          (err3) => {
+            if (err3) return res.status(500).json({ error: err3.message });
+
+            // increment current_players for the game
+            db.run(
+              `UPDATE games SET current_players = current_players + 1 WHERE id = ?`,
+              [gameId],
+              (err4) => {
+                if (err4) return res.status(500).json({ error: err4.message });
+
+                // set session game context
+                req.session.user.gameId = gameId;
+                req.session.user.playerId = participantId;
+                res.json({ success: true, playerId: participantId });
+              }
+            );
+          }
+        );
+      }
+    );
+    return;
+  }
+
+  // Fallback: require host credentials in body (backwards-compatible)
+  const { username, password } = req.body;
+
   if (!username || !password) {
     return res.status(400).json({ success: false, message: 'Host username and password are required.' });
   }
 
-  db.run(
-    `INSERT INTO games (id, stage,payoff_matrix, error_chance, max_turns, max_players)
-     VALUES (?, 1, ?, ?, ?, ?)`,
-    [
-      gameId,
-      JSON.stringify(payoffMatrix),
-      errorChance,
-      maxTurns,
-      maxPlayers
-    ],
-    function (err) {
-      if (err) return res.status(500).json({ error: err.message });
+  // Ensure user exists (create if needed), then create game and participant
+    db.get("SELECT id, password FROM users WHERE username = ?", [username], (err, existingUser) => {
+    if (err) return res.status(500).json({ error: err.message });
 
-      // After game is created, insert the host player (is_host = 1)
-      const playerId = uuidv4();
+    const createGameAndParticipant = (userId) => {
       db.run(
-        `INSERT INTO players (id, game_id, username, password, is_host, total_score, ready_for_next_turn, score_history)
-         VALUES (?, ?, ?, ?, ?, 0, 0, ?)`,
-        [playerId, gameId, username, password, 1, JSON.stringify([])],
-        (err2) => {
+        `INSERT INTO games (id, stage, payoff_matrix, error_chance, max_turns, history_limit, max_players)
+         VALUES (?, 1, ?, ?, ?, ?, ?)`,
+        [
+          gameId,
+          JSON.stringify(payoffMatrix),
+          errorChance,
+          maxTurns,
+          resolvedHistoryLimit,
+          maxPlayers
+        ],
+        function (err2) {
           if (err2) return res.status(500).json({ error: err2.message });
 
-          // increment current_players for the game
+          // create participant (host)
+          const participantId = uuidv4();
           db.run(
-            `UPDATE games SET current_players = current_players + 1 WHERE id = ?`,
-            [gameId],
+            `INSERT INTO participants (id, game_id, user_id, username, is_host, total_score, ready_for_next_turn, score_history)
+             VALUES (?, ?, ?, ?, ?, 0, 0, ?)`,
+            [participantId, gameId, userId, username, 1, JSON.stringify([])],
             (err3) => {
               if (err3) return res.status(500).json({ error: err3.message });
 
-              res.json({ success: true, playerId });
+              // increment current_players for the game
+              db.run(
+                `UPDATE games SET current_players = current_players + 1 WHERE id = ?`,
+                [gameId],
+                (err4) => {
+                  if (err4) return res.status(500).json({ error: err4.message });
+
+                  // set session: keep backward-compatible fields
+                  req.session.user = { userId, username, gameId, playerId: participantId };
+                  res.json({ success: true, playerId: participantId });
+                }
+              );
             }
           );
         }
       );
+    };
+
+    if (existingUser) {
+      // compare hashed password
+      if (!bcrypt.compareSync(password, existingUser.password)) {
+        return res.status(400).json({ success: false, message: 'Username already exists with different password.' });
+      }
+      createGameAndParticipant(existingUser.id);
+    } else {
+      const userId = uuidv4();
+      const hashed = bcrypt.hashSync(password, 10);
+      db.run(`INSERT INTO users (id, username, password) VALUES (?, ?, ?)`, [userId, username, hashed], (err3) => {
+        if (err3) return res.status(500).json({ error: err3.message });
+        createGameAndParticipant(userId);
+      });
     }
-  );
+  });
 });
 router.post("/joinGame", (req, res) => {
   const { gameId, username, password } = req.body;
@@ -65,67 +183,86 @@ router.post("/joinGame", (req, res) => {
   db.get("SELECT * FROM games WHERE id = ?", [gameId], (err, game) => {
     if (!game) return res.json({ success: false, message: "Game does not exist." });
 
-    db.get(
-      "SELECT * FROM players WHERE game_id = ? AND username = ?",
-      [gameId, username],
-      (err2, player) => {
+    // Authenticate or create global user first
+    db.get("SELECT id, password, reset_bypass, last_reset_at, is_admin FROM users WHERE username = ?", [username], (err2, userRow) => {
+      if (err2) return res.status(500).json({ error: err2.message });
 
-        // Player exists → check password
-        if (player) {
-          if (player.password === password) {
-            req.session.user = {
-              gameId,
-              username,
-              playerId: player.id,
-            };
+      const proceedWithUser = (userId) => {
+        // check if participant already exists for this game and user
+        db.get(
+          "SELECT * FROM participants WHERE game_id = ? AND user_id = ?",
+          [gameId, userId],
+          (err3, participant) => {
+            if (err3) return res.status(500).json({ error: err3.message });
 
-            return res.json({ success: true });
-          } else {
-            return res.json({ success: false, message: "Incorrect password." });
-          }
-        }
+            if (participant) {
+              // already registered in this game
+              req.session.user = { userId, username, gameId, playerId: participant.id };
+              return res.json({ success: true });
+            }
 
-        // Player does not exist → check capacity
-        if (game.current_players >= game.max_players) {
-          return res.json({ success: false, message: "Game is full." });
-        }
+            // not in game yet → check capacity
+            if (game.current_players >= game.max_players) {
+              return res.json({ success: false, message: "Game is full." });
+            }
 
-        // Register new player
-        const playerId = uuidv4();
-        db.run(
-          `INSERT INTO players (id, game_id, username, password, is_host) VALUES (?, ?, ?, ?, 0)`,
-          [playerId, gameId, username, password],
-          function (err3) {
-            if (err3) return res.json({ success: false, message: "Error creating player." });
-
+            const participantId = uuidv4();
             db.run(
-              "UPDATE games SET current_players = current_players + 1 WHERE id = ?",
-              [gameId],
-              () => {
-                req.session.user = {
-                  gameId,
-                  username,
-                  playerId,
-                };
+              `INSERT INTO participants (id, game_id, user_id, username, is_host) VALUES (?, ?, ?, ?, 0)`,
+              [participantId, gameId, userId, username],
+              function (err4) {
+                if (err4) return res.json({ success: false, message: "Error creating participant." });
 
-                return res.json({ success: true });
+                db.run(
+                  "UPDATE games SET current_players = current_players + 1 WHERE id = ?",
+                  [gameId],
+                  () => {
+                    req.session.user = { userId, username, gameId, playerId: participantId };
+                    return res.json({ success: true });
+                  }
+                );
               }
             );
           }
         );
+      };
+
+      if (userRow) {
+        if (!bcrypt.compareSync(password, userRow.password)) {
+          // determine if reset should be offered
+          const isAdmin = userRow.is_admin === 1 || userRow.is_admin === '1';
+          let resetAllowed = false;
+          if (!isAdmin) {
+            if (userRow.reset_bypass === 1 || userRow.reset_bypass === '1') resetAllowed = true;
+            else if (!userRow.last_reset_at) resetAllowed = true;
+            else {
+              const last = new Date(userRow.last_reset_at + 'Z');
+              const diff = Date.now() - last.getTime();
+              if (diff > 24 * 60 * 60 * 1000) resetAllowed = true;
+            }
+          }
+          return res.json({ success: false, message: 'Incorrect password.', resetAllowed });
+        }
+        proceedWithUser(userRow.id);
+      } else {
+        // create user (hashed)
+        const newUserId = uuidv4();
+        const hashed = bcrypt.hashSync(password, 10);
+        db.run("INSERT INTO users (id, username, password) VALUES (?, ?, ?)", [newUserId, username, hashed], (err4) => {
+          if (err4) return res.status(500).json({ error: err4.message });
+          proceedWithUser(newUserId);
+        });
       }
-    );
+    });
   });
 });
+
 router.get("/session", (req, res) => {
   if (!req.session.user) {
     return res.json({ loggedIn: false });
   }
 
-  res.json({
-    loggedIn: true,
-    user: req.session.user
-  });
+  res.json({ loggedIn: true, user: req.session.user });
 });
 router.post("/logout", (req, res) => {
   req.session.destroy(() => {
@@ -142,7 +279,7 @@ router.get("/gameScores", (req, res) => {
   const { gameId } = req.session.user;
 
   db.all(
-    "SELECT id, username, total_score FROM players WHERE game_id = ?",
+    "SELECT id, username, total_score FROM participants WHERE game_id = ?",
     [gameId],
     (err, rows) => {
       if (err) return res.status(500).json({ error: err.message });
@@ -158,7 +295,7 @@ router.get("/playerCount", (req, res) => {
   const { gameId } = req.session.user;
 
   db.get(
-    "SELECT COUNT(*) as count FROM players WHERE game_id = ?",
+    "SELECT COUNT(*) as count FROM participants WHERE game_id = ?",
     [gameId],
     (err, row) => {
       if (err) return res.status(500).json({ error: err.message });
@@ -179,7 +316,7 @@ router.get("/gameState", (req, res) => {
     (err, game) => {
 
       db.all(
-        "SELECT id, username, total_score, ready_for_next_turn FROM players WHERE game_id = ?",
+        "SELECT id, username, total_score, ready_for_next_turn FROM participants WHERE game_id = ?",
         [gameId],
         (err2, players) => {
 
@@ -204,20 +341,51 @@ router.get("/turnHistory", (req, res) => {
 
   const { gameId, playerId } = req.session.user;
 
-  db.all(
-    `SELECT turn_number, target_id, player_name, target_name,
-            choice, opponent_choice, points_awarded
-     FROM turns
-     WHERE game_id = ?
-     AND player_id = ?
-     ORDER BY turn_number ASC`,
-    [gameId, playerId],
-    (err, rows) => {
-      if (err) return res.status(500).json({ success: false });
+  // Fetch game's history_limit first
+  db.get(`SELECT history_limit FROM games WHERE id = ?`, [gameId], (gErr, gRow) => {
+    if (gErr) return res.status(500).json({ success: false });
+    if (!gRow) return res.status(404).json({ success: false, message: 'Game not found' });
 
-      res.json({ success: true, history: rows });
+    const historyLimit = typeof gRow.history_limit !== 'undefined' && gRow.history_limit !== null ? Number(gRow.history_limit) : 5;
+
+    // Only return finished turns — resolved turns have opponent_choice set
+    if (historyLimit === -1) {
+      db.all(
+        `SELECT turn_number, target_id, player_name, target_name,
+                choice, opponent_choice, points_awarded
+         FROM turns
+         WHERE game_id = ?
+         AND player_id = ?
+         AND opponent_choice IS NOT NULL
+         ORDER BY turn_number ASC`,
+        [gameId, playerId],
+        (err, rows) => {
+          if (err) return res.status(500).json({ success: false });
+          res.json({ success: true, history: rows });
+        }
+      );
+    } else {
+      // Query most recent `historyLimit` finished turns, then return ascending
+      db.all(
+        `SELECT turn_number, target_id, player_name, target_name,
+                choice, opponent_choice, points_awarded
+         FROM turns
+         WHERE game_id = ?
+         AND player_id = ?
+         AND opponent_choice IS NOT NULL
+         ORDER BY turn_number DESC
+         LIMIT ?`,
+        [gameId, playerId, historyLimit],
+        (err, rows) => {
+          if (err) return res.status(500).json({ success: false });
+
+          // rows are DESC by turn_number — reverse to ASC for client
+          const ordered = Array.isArray(rows) ? rows.reverse() : [];
+          res.json({ success: true, history: ordered });
+        }
+      );
     }
-  );
+  });
 });
 router.get('/publicGame/:gameId', (req, res) => {
   const { gameId } = req.params;
@@ -230,7 +398,7 @@ router.get('/publicGame/:gameId', (req, res) => {
       if (!game) return res.status(404).json({ error: 'Game not found' });
 
       db.all(
-        `SELECT id, username FROM players WHERE game_id = ?`,
+        `SELECT id, user_id, username, is_host FROM participants WHERE game_id = ?`,
         [gameId],
         (err2, players) => {
           if (err2) return res.status(500).json({ error: err2.message });
@@ -243,12 +411,161 @@ router.get('/publicGame/:gameId', (req, res) => {
               current_players: game.current_players,
               max_players: game.max_players
             },
-            players: players.map(p => ({ id: p.id, username: p.username, is_host: p.is_host }))
+            players: players.map(p => ({ id: p.id, user_id: p.user_id, username: p.username, is_host: p.is_host }))
           });
         }
       );
     }
   );
+});
+
+// Provide participants' score history for a game (array of totals per turn)
+router.get('/scoreHistory/:gameId', (req, res) => {
+  const { gameId } = req.params;
+
+  db.all(
+    `SELECT id, username, score_history FROM participants WHERE game_id = ?`,
+    [gameId],
+    (err, rows) => {
+      if (err) return res.status(500).json({ success: false, message: err.message });
+
+      const participants = (rows || []).map(r => {
+        let hist = [];
+        try { hist = r.score_history ? JSON.parse(r.score_history) : []; } catch (e) { hist = []; }
+        return { id: r.id, username: r.username, score_history: hist };
+      });
+
+      res.json({ success: true, participants });
+    }
+  );
+});
+
+// Auth endpoints for global user accounts
+router.post('/auth/login', (req, res) => {
+  const { username, password } = req.body;
+  if (!username || !password) return res.status(400).json({ success: false, message: 'Missing credentials' });
+
+  db.get('SELECT id, password, reset_bypass, last_reset_at, is_admin FROM users WHERE username = ?', [username], (err, row) => {
+    if (err) return res.status(500).json({ success: false, message: err.message });
+
+    if (!row) return res.status(401).json({ success: false, message: 'Invalid credentials', resetAllowed: false });
+
+    if (!bcrypt.compareSync(password, row.password)) {
+      // compute resetAllowed for non-admins
+      const isAdmin = row.is_admin === 1 || row.is_admin === '1';
+      let resetAllowed = false;
+      if (!isAdmin) {
+        if (row.reset_bypass === 1 || row.reset_bypass === '1') resetAllowed = true;
+        else if (!row.last_reset_at) resetAllowed = true;
+        else {
+          const last = new Date(row.last_reset_at + 'Z');
+          const diff = Date.now() - last.getTime();
+          if (diff > 24 * 60 * 60 * 1000) resetAllowed = true;
+        }
+      }
+
+      return res.status(401).json({ success: false, message: 'Invalid credentials', resetAllowed });
+    }
+
+    req.session.user = { userId: row.id, username };
+    res.json({ success: true });
+  });
+});
+
+router.post('/auth/register', (req, res) => {
+  const { username, password } = req.body;
+  if (!username || !password) return res.status(400).json({ success: false, message: 'Missing credentials' });
+
+  db.get('SELECT id FROM users WHERE username = ?', [username], (err, row) => {
+    if (err) return res.status(500).json({ success: false, message: err.message });
+    if (row) return res.status(400).json({ success: false, message: 'Username already exists' });
+
+    const userId = uuidv4();
+    const hashed = bcrypt.hashSync(password, 10);
+    db.run('INSERT INTO users (id, username, password) VALUES (?, ?, ?)', [userId, username, hashed], (err2) => {
+      if (err2) return res.status(500).json({ success: false, message: err2.message });
+      req.session.user = { userId, username };
+      res.json({ success: true });
+    });
+  });
+});
+
+// Password reset endpoint. Allows:
+// - logged-in user to reset own password
+// - admin to reset any user's password
+// - unauthenticated reset only if resetAllowed (last reset >24h or reset_bypass)
+router.post('/auth/resetPassword', (req, res) => {
+  const { username, newPassword } = req.body;
+  if (!username || !newPassword) return res.status(400).json({ success: false, message: 'Missing parameters' });
+
+  db.get('SELECT id, reset_bypass, last_reset_at FROM users WHERE username = ?', [username], (err, target) => {
+    if (err) return res.status(500).json({ success: false, message: err.message });
+    if (!target) return res.status(404).json({ success: false, message: 'User not found' });
+
+    const attemptReset = (allowed) => {
+      if (!allowed) return res.status(403).json({ success: false, message: 'Password reset not allowed at this time' });
+
+      const hashed = bcrypt.hashSync(newPassword, 10);
+      db.run('UPDATE users SET password = ?, last_reset_at = datetime(\'now\') WHERE id = ?', [hashed, target.id], (uErr) => {
+        if (uErr) return res.status(500).json({ success: false, message: uErr.message });
+        res.json({ success: true });
+      });
+    };
+
+    // If logged in
+    if (req.session && req.session.user && req.session.user.userId) {
+      const callerId = req.session.user.userId;
+      if (callerId === target.id) {
+        return attemptReset(true);
+      }
+
+      // check if caller is admin
+      db.get('SELECT is_admin FROM users WHERE id = ?', [callerId], (e2, callerRow) => {
+        if (e2) return res.status(500).json({ success: false, message: e2.message });
+        if (callerRow && (callerRow.is_admin === 1 || callerRow.is_admin === '1')) {
+          return attemptReset(true);
+        }
+
+        // caller is someone else — not allowed unless resetAllowed
+        let resetAllowed = false;
+        if (target.reset_bypass === 1 || target.reset_bypass === '1') resetAllowed = true;
+        else if (!target.last_reset_at) resetAllowed = true;
+        else {
+          const last = new Date(target.last_reset_at + 'Z');
+          if (Date.now() - last.getTime() > 24 * 60 * 60 * 1000) resetAllowed = true;
+        }
+        return attemptReset(resetAllowed);
+      });
+    } else {
+      // not logged in — allow only if resetAllowed
+      let resetAllowed = false;
+      if (target.reset_bypass === 1 || target.reset_bypass === '1') resetAllowed = true;
+      else if (!target.last_reset_at) resetAllowed = true;
+      else {
+        const last = new Date(target.last_reset_at + 'Z');
+        if (Date.now() - last.getTime() > 24 * 60 * 60 * 1000) resetAllowed = true;
+      }
+      return attemptReset(resetAllowed);
+    }
+  });
+});
+
+// Admin: set/reset the bypass flag for a user
+router.post('/admin/setResetBypass', (req, res) => {
+  if (!req.session || !req.session.user) return res.status(401).json({ success: false, message: 'Not logged in' });
+  const callerId = req.session.user.userId;
+  const { username, bypass } = req.body;
+  if (!username || typeof bypass === 'undefined') return res.status(400).json({ success: false, message: 'Missing parameters' });
+
+  db.get('SELECT is_admin FROM users WHERE id = ?', [callerId], (err, callerRow) => {
+    if (err) return res.status(500).json({ success: false, message: err.message });
+    if (!callerRow || !(callerRow.is_admin === 1 || callerRow.is_admin === '1')) return res.status(403).json({ success: false, message: 'Not authorized' });
+
+    db.run('UPDATE users SET reset_bypass = ? WHERE username = ?', [bypass ? 1 : 0, username], (uErr) => {
+      if (uErr) return res.status(500).json({ success: false, message: uErr.message });
+      res.json({ success: true });
+    });
+  });
 });
 
 // Start game (host only)
@@ -259,7 +576,7 @@ router.post('/startGame', (req, res) => {
 
   // verify caller is host
   db.get(
-    'SELECT is_host FROM players WHERE id = ? AND game_id = ?',
+    'SELECT is_host FROM participants WHERE id = ? AND game_id = ?',
     [req.session.user.playerId, gameId],
     (err, player) => {
       if (err) return res.status(500).json({ success: false, message: err.message });
@@ -274,11 +591,82 @@ router.post('/startGame', (req, res) => {
   );
 });
 
+// Join current game as the logged-in user (no credentials required)
+router.post('/joinGameAsUser', (req, res) => {
+  if (!req.session.user) return res.status(401).json({ success: false, message: 'Not logged in' });
+  const { userId, username } = req.session.user;
+  const { gameId } = req.body;
+  if (!gameId) return res.status(400).json({ success: false, message: 'Missing gameId' });
+  // Use BEGIN/COMMIT transaction style to ensure join checks + insert are atomic
+  db.run('BEGIN IMMEDIATE', (beginErr) => {
+    if (beginErr) return res.status(500).json({ success: false, message: beginErr.message });
+
+    db.get('SELECT * FROM games WHERE id = ?', [gameId], (err, game) => {
+      if (err) {
+        db.run('ROLLBACK', () => {});
+        return res.status(500).json({ success: false, message: err.message });
+      }
+      if (!game) {
+        db.run('ROLLBACK', () => {});
+        return res.status(404).json({ success: false, message: 'Game not found' });
+      }
+
+      // Check if already participant
+      db.get('SELECT * FROM participants WHERE game_id = ? AND user_id = ?', [gameId, userId], (err2, part) => {
+        if (err2) {
+          db.run('ROLLBACK', () => {});
+          return res.status(500).json({ success: false, message: err2.message });
+        }
+        if (part) {
+          // already participant — commit and return
+          db.run('COMMIT', () => {
+            req.session.user.gameId = gameId;
+            req.session.user.playerId = part.id;
+            return res.json({ success: true });
+          });
+          return;
+        }
+
+        if (game.current_players >= game.max_players) {
+          db.run('ROLLBACK', () => {});
+          return res.status(400).json({ success: false, message: 'Game is full' });
+        }
+
+        const participantId = uuidv4();
+        db.run(`INSERT INTO participants (id, game_id, user_id, username, is_host) VALUES (?, ?, ?, ?, 0)`, [participantId, gameId, userId, username], (err3) => {
+          if (err3) {
+            db.run('ROLLBACK', () => {});
+            return res.status(500).json({ success: false, message: err3.message });
+          }
+
+          db.run('UPDATE games SET current_players = current_players + 1 WHERE id = ?', [gameId], (err4) => {
+            if (err4) {
+              db.run('ROLLBACK', () => {});
+              return res.status(500).json({ success: false, message: err4.message });
+            }
+
+            db.run('COMMIT', (commitErr) => {
+              if (commitErr) {
+                db.run('ROLLBACK', () => {});
+                return res.status(500).json({ success: false, message: commitErr.message });
+              }
+
+              req.session.user.gameId = gameId;
+              req.session.user.playerId = participantId;
+              res.json({ success: true });
+            });
+          });
+        });
+      });
+    });
+  });
+});
+
 // Return current player's minimal info (requires session)
 router.get('/myPlayer', (req, res) => {
   if (!req.session.user) return res.status(401).json({ success: false, message: 'Not logged in' });
   const { playerId } = req.session.user;
-  db.get('SELECT id, username, is_host FROM players WHERE id = ?', [playerId], (err, row) => {
+  db.get('SELECT id, username, is_host FROM participants WHERE id = ?', [playerId], (err, row) => {
     if (err) return res.status(500).json({ success: false, message: err.message });
     if (!row) return res.status(404).json({ success: false, message: 'Player not found' });
     res.json({ success: true, player: row });
@@ -338,7 +726,7 @@ router.post("/submitChoices", (req, res) => {
 
           // 3️⃣ Mark player ready
           db.run(
-            "UPDATE players SET ready_for_next_turn = 1 WHERE id = ?",
+            "UPDATE participants SET ready_for_next_turn = 1 WHERE id = ?",
             [playerId],
             function(err3) {
               if (err3) {
@@ -348,7 +736,7 @@ router.post("/submitChoices", (req, res) => {
               // 4️⃣ Check if everyone ready
               db.get(
                 `SELECT COUNT(*) AS notReady
-                 FROM players
+                 FROM participants
                  WHERE game_id = ?
                  AND ready_for_next_turn = 0`,
                 [gameId],

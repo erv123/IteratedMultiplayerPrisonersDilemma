@@ -8,8 +8,7 @@
 
   <h2>Game ID: <span id="gameIdDisplay"></span></h2> 
   <h3>Host profile</h3>
-  <input id="username" placeholder="Username">
-  <input id="password" type="password" placeholder="Password">
+  <div>Host will be the currently logged-in account from the lobby session.</div>
 
   <h3>Payoff Matrix</h3>
 
@@ -40,6 +39,11 @@
 
   <label>Turn Count:</label>
   <input id="maxTurns" type="number" min="1" value="15"/>
+
+  <br><br>
+
+  <label>History Limit (-1 for unlimited):</label>
+  <input id="historyLimit" type="number" value="5"/>
 
   <br><br>
 

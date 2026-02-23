@@ -79,17 +79,43 @@ const resolveTurn = (gameId, turnNumber) => {
 
           // 3️⃣ Update total scores once per player
           Object.entries(scoreTotals).forEach(([playerId, totalPoints]) => {
+            // Increment total score
             db.run(
-              `UPDATE players
+              `UPDATE participants
                SET total_score = total_score + ?
                WHERE id = ?`,
-              [totalPoints, playerId]
+              [totalPoints, playerId],
+              (uErr) => {
+                if (uErr) return;
+
+                // After updating total_score, read the new total and append it to score_history
+                db.get(
+                  `SELECT total_score, score_history FROM participants WHERE id = ?`,
+                  [playerId],
+                  (gErr, prow) => {
+                    if (gErr || !prow) return;
+
+                    let history = [];
+                    try {
+                      history = prow.score_history ? JSON.parse(prow.score_history) : [];
+                    } catch (e) { history = []; }
+
+                    // Append the new total score for this turn
+                    history.push(prow.total_score);
+
+                    db.run(
+                      `UPDATE participants SET score_history = ? WHERE id = ?`,
+                      [JSON.stringify(history), playerId]
+                    );
+                  }
+                );
+              }
             );
           });
 
           // 4️⃣ Reset ready flags
           db.run(
-            `UPDATE players
+            `UPDATE participants
              SET ready_for_next_turn = 0
              WHERE game_id = ?`,
             [gameId]

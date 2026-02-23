@@ -13,12 +13,13 @@ async function registerGame() {
   const errorChance = Number(document.getElementById("errorChance").value);
   const maxTurns = Number(document.getElementById("maxTurns").value);
   const maxPlayers = Number(document.getElementById("maxPlayers").value);
-  const username = document.getElementById("username").value.trim();
-  const password = document.getElementById("password").value;
-
-  // Validate host credentials
-  if (!username || !password) {
-    alert("Host username and password are required to create a game.");
+  const historyLimitInput = document.getElementById("historyLimit");
+  const historyLimit = historyLimitInput ? Number(historyLimitInput.value) : 5;
+  // Ensure user is logged in via session
+  const s = await fetch('/api/session', { credentials: 'same-origin' });
+  const sd = await s.json();
+  if (!sd.loggedIn) {
+    alert('You must be logged in to create a game. Please log in from the lobby.');
     return;
   }
 
@@ -35,6 +36,7 @@ async function registerGame() {
 
   const res = await fetch("/api/register", {
     method: "POST",
+    credentials: 'same-origin',
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       gameId,
@@ -42,8 +44,7 @@ async function registerGame() {
       errorChance,
       maxTurns,
       maxPlayers,
-      username,
-      password
+      historyLimit
     }),
   });
 
