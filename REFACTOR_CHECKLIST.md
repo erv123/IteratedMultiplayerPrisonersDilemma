@@ -3,16 +3,16 @@
 Purpose: Provide a minimal, ordered checklist to refactor the project for clarity, maintainability and testability. Follow items in order.
 
 **1. Folder Structure & Project Outline**
-- [ ] Adopt clear top-level layout: `server/`, `routes/`, `public/`, `utils/`, `database/`, `tests/`, `docs/` (recommended).
-- [ ] Standardize file naming: use `kebab-case` for front-end assets, `camelCase` or `snake_case` for DB columns; use `.js` everywhere.
-- [ ] Move environment and config into `config/` or `.env` (use `dotenv`). Decision: prefer `config/` + `.env` for local secrets.
-- [ ] Add an entry `src/` only if moving to TypeScript or large refactor; keep small project flat for now.
+- [x] Adopt clear top-level layout: `server/`, `routes/`, `public/`, `utils/`, `database/`, `tests/`, `docs/` (recommended).
+- [x] Standardize file naming: use `kebab-case` for front-end assets, `camelCase` or `snake_case` for DB columns; use `.js` everywhere.
+- [x] Move environment and config into `config/` or `.env` (use `dotenv`). Decision: prefer `config/` + `.env` for local secrets.
+- [x] Add an entry `src/` only if moving to TypeScript or large refactor; keep small project flat for now.
 
 **2. Database Structure**
 - [ ] Define canonical schema in `server/db.js` and add SQL migration scripts in `database/migrations/`.
-- [ ] Add explicit column comments in schema file and keep a `schema.md` in `docs/`.
-- [ ] Use JSON columns only when necessary (e.g., `payoff_matrix`, `score_history`); prefer normalized columns when querying often.
-- [ ] Decision point: Keep using SQLite for simple deployments; migrate to PostgreSQL if concurrent usage or ACID requirements grow.
+- [x] Add explicit column comments in schema file and keep a `schema.md` in `docs/`.
+- [x] Use JSON columns only when necessary (e.g., `payoff_matrix`, `score_history`); prefer normalized columns when querying often.
+- [x] Decision point: Keep using SQLite for simple deployments; migrate to PostgreSQL if concurrent usage or ACID requirements grow.
 
 **3. API Structure**
 - [ ] Group route handlers by resource: `routes/games.js`, `routes/auth.js`, `routes/participants.js`, `routes/admin.js`.
