@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Game Info</title>
+</head>
+<body>
+  <h1>Game Info</h1>
+  <div>Game ID: <span id="gameIdDisplay"></span></div>
+  <div id="status"></div>
+
+  <button id="backLobbyBtn" style="margin-top:8px;">Back to Lobby</button>
+
+  <div id="loginNotice">
+    Please log in from the lobby to join this game.
+  </div>
+
+  <div id="loggedInActions" style="display:none; margin-top:10px;">
+    <button id="enterGameBtn">Join / Enter Game</button>
+    <button id="logoutBtn">Logout</button>
+  </div>
+
+  <h3>Players</h3>
+  <div id="playersList">(loading...)</div>
+
+  <h3>Score History</h3>
+  <canvas id="scoreChart" width="800" height="300" style="border:1px solid #ccc"></canvas>
+
+  <script src="/api.js"></script>
+  <script src="/polling.js"></script>
+  <script src="/gameInfo.js"></script>
+</body>
+</html>

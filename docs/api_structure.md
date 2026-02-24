@@ -7,11 +7,13 @@ This document describes a cleaned, resource-oriented API structure for the proje
   - POST /auth/register — create a global user account. Validate `username` and `password`. Returns session on success.
   - POST /auth/login — authenticate user. Returns session token in cookie and `success` boolean.
   - POST /auth/resetPassword — reset password (admin or reset policy). Validates `username` + `newPassword` and enforces reset rules.
-  - GET  /auth/whoami — (optional) return current session user info.
+  - GET  /auth/whoami — return current session user info.
+  - POST /auth/logout — clear session / revoke cookie (compat: `POST /api/logout`).
 
 - /games
   - POST /games — create a new game (was `/api/register`). Body: `payoffMatrix`, `errorChance`, `maxTurns`, `maxPlayers`, `historyLimit`. Host is session user. Returns `gameId` and host `participantId`.
   - GET  /games — list games (admin/debug) or with query filters (stage, host).
+  - GET  /games/:gameId/playerCount — return current player count for a game (lightweight, maps to legacy `playerCount` helper route).
   - GET  /games/:gameId — return game metadata (id, stage, players count, max_players, history_limit, etc.). (maps to `publicGame`).
   - POST /games/:gameId/start — host-only: set game to started. (maps to `startGame`).
   - POST /games/:gameId/join — join by credentials OR session (maps to `joinGame`, `joinGameAsUser`). Should be transactional.
@@ -25,7 +27,6 @@ This document describes a cleaned, resource-oriented API structure for the proje
 
 - /turns
   - GET /turns/resolve-status?gameId=&turnNumber — utility for clients to know whether a turn is resolved.
-  - POST /turns/resolve — admin/debug hook to force resolve (use with caution).
 
 - /scores
   - GET /games/:gameId/scores — current participant totals (maps to `gameScores`).
@@ -33,15 +34,12 @@ This document describes a cleaned, resource-oriented API structure for the proje
 
 - /admin
   - GET  /admin/users — list users (maps to `_listUsers`), admin-only.
-  - POST /admin/setResetBypass — set/reset bypass flag for a user. Admin-only.
+  - POST /admin/setResetBypass — set/reset bypass flag for a user. Admin-only.  
 
-- /debug
-  - GET /_whoami — returns session user details and admin flags.
-  - GET /listGames — convenience route listing game IDs.
 
 Notes on mapping from existing `routes/gameRoutes.js`:
-- Keep feature parity for endpoints listed above; rename and group under the resourceful endpoints to improve clarity (e.g., move `/api/register` → `POST /api/games`).
-- Remove or deprecate duplicate routes (e.g., `/api/joinGame` vs `/api/joinGameAsUser`) and provide a single `POST /games/:gameId/join` that supports both credential-based and session-based joins.
+ - Keep feature parity for endpoints listed above; rename and group under the resourceful endpoints to improve clarity (e.g., move `/api/register` → `POST /api/games`).
+ - Remove or deprecate duplicate routes (e.g., `/api/joinGame` vs `/api/joinGameAsUser`) and provide a single `POST /games/:gameId/join` that supports both credential-based and session-based joins.
 
 Service / DB boundaries (what to move into `src/services/`)
 - `services/gameService.js`

@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Game Lobby</title>
+</head>
+<body>
+  <h1>Create or Join Game</h1>
+
+  <button id="createGameBtn">Create Game</button>
+
+  <div id="authArea">
+    <div id="loginForm">
+      <input id="username" placeholder="Username" />
+      <input id="password" type="password" placeholder="Password" />
+      <button id="loginBtn">Log In</button>
+      <button id="registerBtn">Register</button>
+    </div>
+    <div id="loggedInActions" style="display:none;">
+      <span id="welcomeMsg"></span>
+      <button id="profileBtn">Profile</button>
+      <button id="logoutBtn">Log Out</button>
+    </div>
+  </div>
+
+  <h3>Active Games:</h3>
+  <div id="gamesContainer"></div>
+  <p id="output"></p>
+
+  <script src="api.js"></script>
+  <script src="polling.js"></script>
+  <script src="index.js"></script>
+  <script>
+    if (typeof initLobby === 'function') initLobby();
+  </script>
+</body>
+</html>

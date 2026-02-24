@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Game</title>
+  <style>
+    body { font-family: Arial; }
+
+    .topbar { display:flex; gap:12px; align-items:center; margin-bottom:16px; }
+    .container { display:flex; gap:20px; }
+    .players { flex: 1 1 60%; }
+    .leaderboard { flex: 0 0 30%; border-left:1px solid #ccc; padding-left:16px; }
+    .player-row { display:flex; align-items:center; gap:8px; margin-bottom:8px; }
+    .player-name { width:140px; }
+    .choice-btn:disabled { background:#ddd; cursor:not-allowed; }
+    .selected-peace { background: #2e8b57; color: #fff; }
+    .selected-war { background: #b22222; color: #fff; }
+  </style>
+</head>
+<body>
+
+  <div class="topbar">
+    <div>Game ID: <span id="gameId"></span></div>
+    <div>Turn: <span id="turnDisplay"></span></div>
+    <div>User: <span id="username">(guest)</span></div>
+    <button id="backToInfoBtn">Back to Info</button>
+    <button id="logoutBtn">Logout</button>
+  </div>
+
+  <div class="container">
+    <div class="players">
+      <h3 id="actionHeader">Choose Your Actions</h3>
+      <div id="playerList"></div>
+      <br>
+      <button id="endTurnBtn">End Turn</button>
+    </div>
+
+    <div class="leaderboard">
+      <h3>Leaderboard</h3>
+      <div id="leaderboard">(loading...)</div>
+    </div>
+  </div>
+
+  <h3>Turn History</h3>
+  <div id="historyContainer"></div>
+
+  <script src="/api.js"></script>
+  <script src="/polling.js"></script>
+  <script src="/game.js"></script>
+</body>
+</html>

@@ -2,17 +2,18 @@
   "name": "prisonersdilemma",
   "version": "1.0.0",
   "description": "",
-  "main": "public/index.js",
+  "main": "srnpmc/server/server.js",
   "scripts": {
-    "dev": "nodemon server/server.js"
+    "dev": "nodemon src/server/server.js"
   },
   "keywords": [],
-  "author": "",
+  "author": "Ervins Roderts",
   "license": "ISC",
   "type": "commonjs",
   "dependencies": {
     "express": "^5.2.1",
     "express-session": "^1.19.0",
+    "express-validator": "^6.14.3",
     "sqlite3": "^5.1.7",
     "uuid": "^13.0.0",
     "bcryptjs": "^2.4.3"

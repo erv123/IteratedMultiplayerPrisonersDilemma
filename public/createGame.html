@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Create Game</title>
+</head>
+<body>
+  <h1>Create New Game</h1>
+
+  <h2>Game ID: <span id="gameIdDisplay">(pending)</span></h2>
+  <h3>Host profile</h3>
+  <div id="hostInfo">Checking session...</div>
+
+  <h3>Payoff Matrix</h3>
+
+  <table border="1">
+    <tr>
+      <td></td>
+      <td>Peace</td>
+      <td>War</td>
+    </tr>
+    <tr>
+      <td>Peace</td>
+      <td><input id="pp" type="number" value="2"/></td>
+      <td><input id="pw" type="number" value="0"/></td>
+    </tr>
+    <tr>
+      <td>War</td>
+      <td><input id="wp" type="number" value="3"/></td>
+      <td><input id="ww" type="number" value="1"/></td>
+    </tr>
+  </table>
+
+  <h3>Game Settings</h3>
+
+  <label>Error Chance (0–100%):</label>
+  <input id="errorChance" type="number" step="1" min="0" max="100" value="5"/>
+
+  <br><br>
+
+  <label>Turn Count (required, integer ≥ 1):</label>
+  <input id="maxTurns" type="number" min="1" required />
+
+  <br><br>
+
+  <label>History Limit (-1 for unlimited):</label>
+  <input id="historyLimit" type="number" value="5"/>
+
+  <br><br>
+
+  <label>Max Players:</label>
+  <input id="maxPlayers" type="number" min="1" value="6"/>
+
+  <br><br>
+
+  <button id="registerBtn">Register Game</button>
+
+  <script src="/api.js"></script>
+  <script src="/createGame.js"></script>
+</body>
+</html>

@@ -9,33 +9,33 @@ Purpose: Provide a minimal, ordered checklist to refactor the project for clarit
 - [x] Add an entry `src/` only if moving to TypeScript or large refactor; keep small project flat for now.
 
 **2. Database Structure**
-- [ ] Define canonical schema in `server/db.js` and add SQL migration scripts in `database/migrations/`.
+- [x] Define canonical schema in `server/db.js` and add SQL migration scripts in `database/migrations/`.
 - [x] Add explicit column comments in schema file and keep a `schema.md` in `docs/`.
 - [x] Use JSON columns only when necessary (e.g., `payoff_matrix`, `score_history`); prefer normalized columns when querying often.
 - [x] Decision point: Keep using SQLite for simple deployments; migrate to PostgreSQL if concurrent usage or ACID requirements grow.
 
 **3. API Structure**
-- [ ] Group route handlers by resource: `routes/games.js`, `routes/auth.js`, `routes/participants.js`, `routes/admin.js`.
-- [ ] Ensure each route is small and focused; extract DB logic into `services/` (e.g., `services/gameService.js`).
-- [ ] Add input validation (use `express-validator` or `Joi`). Decision: prefer lightweight `express-validator` for minimal deps.
-- [ ] Standardize JSON response format: `{ success: boolean, data?:..., error?: { message, code } }`.
+- [x] Group route handlers by resource: `routes/games.js`, `routes/auth.js`, `routes/participants.js`, `routes/admin.js`.
+- [x] Ensure each route is small and focused; extract DB logic into `services/` (e.g., `services/gameService.js`).
+- [x] Add input validation (use `express-validator` or `Joi`). Decision: prefer lightweight `express-validator` for minimal deps.
+- [x] Standardize JSON response format: `{ success: boolean, data?:..., error?: { message, code } }`.
 
 **4. Server Startup, Game Logic, UI Polling**
-- [ ] Centralize DB initialization and migrations in `server/db.js` and call migrations at startup.
-- [ ] Extract game logic into `utils/` or `services/` with pure functions where possible (`turnResolver` already exists — make it return results and side-effect DB in a single well-documented function).
-- [ ] Replace ad-hoc polling with a single `polling` module in `public/` that centralizes intervals and backoff policy.
-- [ ] Decision point: Keep polling (simpler) or move to WebSockets for real-time responsiveness. Suggested: start with polling, design interfaces so WebSocket switch is possible.
+- [x] Centralize DB initialization and migrations in `server/db.js` and call migrations at startup.
+- [x] Extract game logic `services/` with pure functions where possible (`turnResolver` already exists — make it return results and side-effect DB in a single well-documented function).
+- [x] Replace ad-hoc polling with a single `polling` module in `public/` that centralizes intervals and backoff policy.
+- [x] Decision point: Keep polling.
 
 **5. UI Fixes to Fit Backend (short-term)**
-- [ ] Centralize API calls in `public/api.js` wrapper to handle `fetch`, sessions, and error handling.
-- [ ] Keep DOM rendering simple: small renderer functions per page (`game.js`, `gameInfo.js`, `createGame.js`).
+- [x] Centralize API calls in `public/api.js` wrapper to handle `fetch`, sessions, and error handling.
+- [x] Keep DOM rendering simple: small renderer functions per page (`game.js`, `gameInfo.js`, `createGame.js`).
 - [ ] Add defensive checks for missing fields (e.g., `score_history` might be null) to avoid UI breakage.
-- [ ] Decision point: UI framework? For now keep vanilla JS; if complexity grows, consider React with small components.
+- [x] Decision point: UI framework? For now keep vanilla JS; if complexity grows, consider React with small components.
 
 **6. Code Quality & Style**
 - [ ] Add ESLint config and Prettier; enforce on commit with Husky (pre-commit hook).
 - [ ] Add JSDoc comments for all public functions and modules; keep function responsibilities small.
-- [ ] Replace callback-style DB access with Promises (or keep wrappers that return Promises) to simplify flow. Decision: gradual migration—introduce a thin `db.promise()` wrapper.
+- [x] Replace callback-style DB access with Promises (or keep wrappers that return Promises) to simplify flow. Decision: gradual migration—introduce a thin `db.promise()` wrapper.
 
 **7. Testing & CI**
 - [ ] Add `tests/` with unit tests for `turnResolver`, `gameRoutes` (use supertest), and DB helpers (use a temp SQLite file).
