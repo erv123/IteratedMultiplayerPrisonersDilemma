@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 
-router.get('/:gameId/scores', async (req, res) => {
+router.get('/:gameId', async (req, res) => {
   try {
     const rows = await require('../services/dbWrapper').allAsync('SELECT id, username, total_score FROM participants WHERE game_id = ?', [req.params.gameId]);
     return res.json({ success: true, data: rows });

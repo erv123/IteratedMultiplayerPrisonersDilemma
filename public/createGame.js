@@ -50,12 +50,15 @@
     if (!Number.isInteger(historyLimit) || historyLimit < -1) return alert('History limit must be >= -1');
 
     const payload = {
+        name: document.getElementById('gameName').value.trim(),
       payoffMatrix,
       errorChance,
       maxTurns,
       maxPlayers,
       historyLimit,
     };
+
+      if (!payload.name) return alert('Game name is required');
 
     try {
       const res = await window.api.post('/games', payload);

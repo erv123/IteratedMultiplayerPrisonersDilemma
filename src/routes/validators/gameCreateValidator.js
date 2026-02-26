@@ -8,6 +8,14 @@ const gameCreateValidator = [
     .custom(v => typeof v === 'object' && v !== null && !Array.isArray(v))
     .withMessage('payoffMatrix must be an object'),
 
+  body('name')
+    .exists({ checkNull: true, checkFalsy: true })
+    .withMessage('name is required')
+    .bail()
+    .isString()
+    .withMessage('name must be a string')
+    .trim(),
+
   body('errorChance')
     .optional()
     .isFloat({ min: 0, max: 100 })

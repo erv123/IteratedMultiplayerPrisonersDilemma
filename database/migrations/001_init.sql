@@ -2,9 +2,10 @@ BEGIN TRANSACTION;
 
 CREATE TABLE IF NOT EXISTS games (
   id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
   stage INTEGER NOT NULL,
   current_turn INTEGER DEFAULT 0,
-  max_turns INTEGER,
+  max_turns INTEGER NOT NULL,
   history_limit INTEGER DEFAULT 5,
   payoff_matrix TEXT NOT NULL DEFAULT '[]',
   error_chance INTEGER DEFAULT 0,
@@ -48,8 +49,6 @@ CREATE TABLE IF NOT EXISTS turns (
   turn_number INTEGER NOT NULL,
   player_id TEXT NOT NULL,
   target_id TEXT NOT NULL,
-  player_name TEXT,
-  target_name TEXT,
   choice TEXT NOT NULL,
   applied_choice TEXT,
   opponent_choice TEXT,

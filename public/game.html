@@ -12,15 +12,19 @@
     .leaderboard { flex: 0 0 30%; border-left:1px solid #ccc; padding-left:16px; }
     .player-row { display:flex; align-items:center; gap:8px; margin-bottom:8px; }
     .player-name { width:140px; }
-    .choice-btn:disabled { background:#ddd; cursor:not-allowed; }
+    button:disabled, .choice-btn:disabled { background:#ddd; color:#666; cursor:not-allowed; opacity:0.9; }
     .selected-peace { background: #2e8b57; color: #fff; }
     .selected-war { background: #b22222; color: #fff; }
+    .cell-war-war { background: #b22222; color: #fff; }
+    .cell-peace-peace { background: #2e8b57; color: #fff; }
+    .cell-war-peace { background: #800080; color: #fff; }
+    .cell-peace-war { background: #000; color: #fff; }
   </style>
 </head>
 <body>
 
   <div class="topbar">
-    <div>Game ID: <span id="gameId"></span></div>
+    <div>Game: <span id="gameId"></span></div>
     <div>Turn: <span id="turnDisplay"></span></div>
     <div>User: <span id="username">(guest)</span></div>
     <button id="backToInfoBtn">Back to Info</button>

@@ -32,6 +32,16 @@ app.use('/api/admin', require('../routes/admin'));
 // Serve public static assets
 app.use(express.static(path.join(__dirname, '../../public')));
 
+// Support extensionless routing for pages so URLs don't need .html
+app.get('/', (req, res) => res.sendFile(path.join(__dirname, '../../public/index.html')));
+app.get('/createGame', (req, res) => {
+	// require authenticated session to access create page
+	if (!req.session || !req.session.user) return res.redirect('/');
+	return res.sendFile(path.join(__dirname, '../../public/createGame.html'));
+});
+app.get('/gameInfo', (req, res) => res.sendFile(path.join(__dirname, '../../public/gameInfo.html')));
+app.get('/game', (req, res) => res.sendFile(path.join(__dirname, '../../public/game.html')));
+
 const PORT = process.env.PORT || 3000;
 
 module.exports = app;

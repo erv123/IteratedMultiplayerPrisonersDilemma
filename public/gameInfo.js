@@ -8,6 +8,8 @@
   const gameIdRaw = getQueryParam('gameId');
   const gameId = gameIdRaw ? gameIdRaw.trim() : '';
   document.getElementById('gameIdDisplay').textContent = gameId || '—';
+  // game name will be populated after fetch
+  const loggedUserEl = document.getElementById('loggedUserDisplay');
 
   const logoutBtn = document.getElementById('logoutBtn');
   const enterGameBtn = document.getElementById('enterGameBtn');
@@ -24,8 +26,14 @@
     try {
       const res = await window.api.get(`/games/${encodeURIComponent(gameId)}`);
       if (!res || !res.success) return null;
-      // response: { data: { game, players } }
-      return res.data;
+      // `res.data` may be either the game object (new) or { game } (older shape)
+      const game = res.data && res.data.game ? res.data.game : res.data;
+      let players = [];
+      try {
+        const rp = await window.api.get(`/games/${encodeURIComponent(gameId)}/participants`);
+        if (rp && rp.success) players = rp.data || [];
+      } catch (e) { console.error('fetch participants error', e); }
+      return { game, players };
     } catch (e) {
       console.error('fetchPublicInfo error', e);
       return null;
@@ -60,10 +68,8 @@
 
   function renderStatus(game) {
     if (!game) { statusEl.textContent = 'No game info'; return; }
-    let stageLabel = String(game.stage);
-    if (game.stage === 1) stageLabel = 'not_started';
-    if (game.stage === 2) stageLabel = 'started';
-    const displayStage = stageLabel === 'not_started' ? 'Not Started' : stageLabel === 'started' ? 'Started' : stageLabel;
+
+    const displayStage = game.stage === 1 ? 'Not Started' : game.stage === 2 ? 'Started' : game.stage === 3 ? 'Completed' : String(game.stage);
     statusEl.textContent = `Stage: ${displayStage} — Players: ${game.currentPlayers || game.current_players || 0}/${game.maxPlayers || game.max_players || 0}`;
   }
 
@@ -121,7 +127,7 @@
     try {
       const res = await window.api.post(`/games/${encodeURIComponent(gameId)}/start`, {});
       if (res && res.success) {
-        window.location.href = '/game';
+          window.location.href = `/game?gameId=${encodeURIComponent(gameId)}`;
       } else {
         alert((res && res.error && res.error.message) || 'Failed to start game');
       }
@@ -147,6 +153,8 @@
     if (!info) return;
     renderStatus(info.game);
     renderPlayers(info.players || []);
+    // show game name
+    try { document.getElementById('gameNameDisplay').textContent = info.game && info.game.name ? info.game.name : (gameId || '—'); } catch (e) {}
 
     // check session and update enter/join button state
     try {
@@ -154,8 +162,10 @@
       const sessionUser = who && who.success ? who.data : null;
       if (sessionUser) {
         loginNotice.style.display = 'none'; loggedInActions.style.display = 'block';
+        try { loggedUserEl.textContent = sessionUser.username; } catch (e) {}
       } else {
         loginNotice.style.display = ''; loggedInActions.style.display = 'none'; enterGameBtn.disabled = true; enterGameBtn.textContent = 'Join / Enter Game';
+        try { loggedUserEl.textContent = '(not logged in)'; } catch (e) {}
       }
 
       // determine participant membership and host status
@@ -176,7 +186,7 @@
         desired = { text: 'Download Game', disabled: false, handler: () => {} };
       } else if (amParticipant) {
         if (stageStr === 'started') {
-          desired = { text: 'Enter Game', disabled: false, handler: () => { window.location.href = '/game'; } };
+          desired = { text: 'Enter Game', disabled: false, handler: () => { window.location.href = `/game?gameId=${encodeURIComponent(gameId)}`; } };
         } else if (amHost && stageStr === 'not_started') {
           desired = { text: 'Start Game', disabled: false, handler: startGame };
         } else {
@@ -196,7 +206,7 @@
       }
 
       if (amParticipant && prevStage !== null && prevStage !== stageStr && stageStr === 'started') {
-        setTimeout(() => { window.location.href = '/game'; }, 50);
+        setTimeout(() => { window.location.href = `/game?gameId=${encodeURIComponent(gameId)}`; }, 50);
       }
       prevStage = stageStr;
     } catch (e) { console.error('session check error', e); }

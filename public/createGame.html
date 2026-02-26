@@ -8,6 +8,9 @@
   <h1>Create New Game</h1>
 
   <h2>Game ID: <span id="gameIdDisplay">(pending)</span></h2>
+  <label>Game Name (required):</label>
+  <input id="gameName" type="text" required />
+  <br><br>
   <h3>Host profile</h3>
   <div id="hostInfo">Checking session...</div>
 
@@ -34,22 +37,22 @@
   <h3>Game Settings</h3>
 
   <label>Error Chance (0–100%):</label>
-  <input id="errorChance" type="number" step="1" min="0" max="100" value="5"/>
+  <input id="errorChance" type="number" step="1" min="0" max="100" value="5" required/>
 
   <br><br>
 
   <label>Turn Count (required, integer ≥ 1):</label>
-  <input id="maxTurns" type="number" min="1" required />
+  <input id="maxTurns" type="number" min="1"  value="15" required />
 
   <br><br>
 
   <label>History Limit (-1 for unlimited):</label>
-  <input id="historyLimit" type="number" value="5"/>
+  <input id="historyLimit" type="number" value="5" required/>
 
   <br><br>
 
   <label>Max Players:</label>
-  <input id="maxPlayers" type="number" min="1" value="6"/>
+  <input id="maxPlayers" type="number" min="1" value="6" required/>
 
   <br><br>
 

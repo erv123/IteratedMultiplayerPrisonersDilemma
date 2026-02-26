@@ -42,7 +42,7 @@ async function getPlayerHistory(gameId, playerId, limit = -1) {
     id: r.id,
     turnNumber: r.turn_number,
     targetId: r.target_id,
-    choice: r.choice,
+    choice: r.applied_choice,
     pointsAwarded: r.points_awarded,
     createdAt: r.created_at,
   }));
