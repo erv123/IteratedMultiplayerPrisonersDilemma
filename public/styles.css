@@ -1,0 +1,127 @@
+:root{
+  --bg:#f6f7fb;
+  --card:#ffffff;
+  --muted:#6b7280;
+  --accent:#2563eb;
+  --danger:#ef4444;
+  --success:#16a34a;
+  --glass: rgba(255,255,255,0.6);
+  --radius:10px;
+  --max-width:1100px;
+}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{
+  margin:0;
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial;
+  background: linear-gradient(180deg,var(--bg),#ffffff);
+  color:#0f172a;
+  -webkit-font-smoothing:antialiased;
+  -moz-osx-font-smoothing:grayscale;
+  line-height:1.4;
+  padding:20px;
+}
+.page{
+  max-width:var(--max-width);
+  margin:0 auto;
+}
+h1{font-size:1.6rem;margin:0 0 12px}
+h2{font-size:1.25rem;margin:0 0 8px}
+h3{font-size:1rem;margin:12px 0}
+
+.card{
+  background:var(--card);
+  border-radius:var(--radius);
+  padding:14px;
+  box-shadow:0 6px 18px rgba(15,23,42,0.06);
+}
+
+.payoff-table{border-collapse:collapse;font-size:0.92rem;margin-top:6px;width:100%;table-layout:fixed}
+.payoff-table td{padding:6px;border:1px solid #eef2ff;text-align:center;background:transparent;overflow:hidden}
+.payoff-table th{padding:6px;border:1px solid #eef2ff;text-align:center;background:linear-gradient(180deg,rgba(0,0,0,0.02),rgba(0,0,0,0.01));font-weight:600}
+.payoff-table tr th:first-child{background:transparent;border-right:1px solid #eef2ff}
+
+/* Topbar narrow-screen ordering tweaks: place status above and user+rules on bottom-left */
+@media (max-width:800px){
+  .topbar{flex-direction:column;align-items:flex-start}
+  .topbar > div:last-child{order:2;align-self:stretch;width:100%;display:flex;flex-direction:column;gap:6px}
+  .topbar > div:last-child > .muted{order:1}
+  .topbar > div:last-child > div{order:2;display:flex;gap:8px;align-items:center;justify-content:flex-start}
+}
+
+/* inputs used in settings and payoff display */
+.game-setting-row{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:4px 0}
+.game-setting-row label{color:var(--muted);font-size:0.9rem}
+.game-setting-input{padding:6px;border-radius:8px;border:1px solid #eef2ff;background:#f8fafc;min-width:60px}
+.payoff-input{padding:4px;border-radius:6px;border:1px solid #eef2ff;background:#fff;min-width:44px;text-align:center;width:100%;box-sizing:border-box}
+.payoff-input:disabled,.game-setting-input:disabled{opacity:1}
+
+.percent-suffix{margin-left:8px;color:var(--muted);font-size:0.95rem}
+
+.topbar{display:flex;gap:12px;align-items:center;margin-bottom:16px;flex-wrap:wrap}
+.topbar .brand{font-weight:600}
+.container{display:flex;gap:20px;align-items:flex-start}
+.players{flex:1 1 60%}
+.leaderboard{flex:0 0 320px}
+
+button{background:var(--accent);color:#fff;border:0;padding:8px 12px;border-radius:8px;cursor:pointer}
+button.secondary{background:#e6eefc;color:var(--accent)}
+button.danger{background:var(--danger)}
+button:disabled{opacity:0.55;cursor:not-allowed}
+
+input,select,textarea{padding:8px;border-radius:8px;border:1px solid #e6eefc;background:#fff;min-height:36px}
+label{display:block;margin-bottom:6px;color:var(--muted);font-size:0.9rem}
+
+.form-row{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:10px}
+
+#gamesContainer{display:flex;flex-direction:column;gap:10px}
+.game-card{display:flex;justify-content:space-between;align-items:center;padding:10px;border-radius:8px;background:linear-gradient(180deg,#fff,#fbfdff);border:1px solid #eef2ff}
+
+#playersList div{padding:8px;border-bottom:1px dashed #f1f5f9}
+
+canvas{max-width:100%;height:auto;border-radius:6px}
+
+/* Responsive */
+@media (max-width:800px){
+  body{padding:12px}
+  /* Topbar: place user row under title and left-aligned */
+  .topbar{flex-direction:column;align-items:flex-start}
+  .topbar > div:last-child{order:2;align-self:stretch;margin-top:8px;width:100%}
+  .topbar > div:first-child{order:1}
+
+  /* Container: stack into a single column and enforce desired order:
+     auth (aside) -> players (players-card) -> score (score-card) -> settings */
+  .container{display:flex;flex-direction:column;gap:12px}
+  .leaderboard{order:1;flex-basis:auto;border-left:0;padding-left:0;width:100%}
+  .players{order:2;width:100%}
+  .players-card{order:1}
+  .score-card{order:2}
+  .settings-wrap{order:4;width:100%}
+
+  /* Make the cards fill the width on mobile */
+  .auth-card,.players-card,.score-card,.settings-card{width:100%}
+}
+
+/* Games list styling */
+#gamesContainer{display:block}
+[data-section]{margin-bottom:14px}
+[data-section] > h4{margin:8px 0;color:var(--accent);font-size:1.05rem}
+h5{margin:8px 0;color:var(--muted);font-size:0.95rem}
+[data-subsection]{padding:6px 0}
+[data-game-id]{display:flex;justify-content:space-between;align-items:center;padding:10px;border-radius:8px;background:linear-gradient(180deg,#fff,#fbfdff);border:1px solid #eef2ff;margin:6px 0}
+[data-game-id] [data-link]{font-weight:600;color:var(--accent);text-decoration:none}
+[data-game-id] [data-meta]{color:var(--muted);margin-left:8px;font-size:0.95rem}
+
+@media (min-width:801px){
+  .lobby-main{display:grid;grid-template-columns:1fr 340px;gap:18px;align-items:start}
+  /* Game info: two-column grid placing players/score left and auth/settings right */
+  .container{display:grid;grid-template-columns:1fr 340px;grid-template-rows:auto auto;gap:18px;grid-template-areas:"players auth" "score settings";align-items:start}
+  .players-card{grid-area:players}
+  .auth-card{grid-area:auth}
+  .score-card{grid-area:score}
+  .settings-card{grid-area:settings}
+}
+
+/* small utilities */
+.muted{color:var(--muted)}
+.pill{display:inline-block;padding:6px 10px;border-radius:999px;background:#f1f5f9;color:#0f172a;font-size:0.85rem}

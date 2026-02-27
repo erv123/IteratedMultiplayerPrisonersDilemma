@@ -18,6 +18,7 @@
   const loggedInActions = document.getElementById('loggedInActions');
   const playersList = document.getElementById('playersList');
   const statusEl = document.getElementById('status');
+  const gameSettingsEl = document.getElementById('gameSettings');
   const loginNotice = document.getElementById('loginNotice');
 
   let lastEnterState = { text: null, disabled: null };
@@ -85,22 +86,102 @@
     if (!participants || participants.length === 0) {
       ctx.fillStyle = '#666'; ctx.fillText('No score history yet', 10, 20); return;
     }
-
-    let maxLen = 0; let maxScore = 0;
-    participants.forEach(p => { const hist = p.scoreHistory || p.score_history || []; maxLen = Math.max(maxLen, hist.length); hist.forEach(v => { if (typeof v === 'number') maxScore = Math.max(maxScore, v); }); });
-    maxScore = Math.max(1, maxScore);
+    // Determine plotting bounds. We include an initial turn 0 at score 0,
+    // then plot each history point at turn indices 1..N.
+    let maxLen = 0; let minFound = Infinity; let maxFound = -Infinity;
+    participants.forEach(p => {
+      const hist = p.scoreHistory || p.score_history || [];
+      maxLen = Math.max(maxLen, hist.length);
+      hist.forEach(v => { if (typeof v === 'number') { minFound = Math.min(minFound, v); maxFound = Math.max(maxFound, v); } });
+    });
+    if (!isFinite(minFound)) minFound = 0; if (!isFinite(maxFound)) maxFound = 0;
+    const minScore = Math.min(0, minFound); const maxScore = Math.max(0, maxFound);
+    const range = Math.max(1, maxScore - minScore);
     const margin = 40; const plotW = w - margin * 2; const plotH = h - margin * 2;
     ctx.strokeStyle = '#ccc'; ctx.beginPath(); ctx.moveTo(margin, margin); ctx.lineTo(margin, margin + plotH); ctx.lineTo(margin + plotW, margin + plotH); ctx.stroke();
-    const turns = Math.max(1, maxLen);
-    for (let i = 0; i < turns; i++) { const x = margin + (i / Math.max(1, turns - 1)) * plotW; ctx.fillStyle = '#999'; ctx.fillText(String(i+1), x - 6, margin + plotH + 14); }
+    // turns = include initial 0 plus each recorded turn -> N+1 tick marks
+    const turns = Math.max(1, maxLen + 1);
+    for (let i = 0; i < turns; i++) { const x = margin + (i / Math.max(1, turns - 1)) * plotW; ctx.fillStyle = '#999'; ctx.fillText(String(i), x - 6, margin + plotH + 14); }
     const colors = ['#e6194b','#3cb44b','#4363d8','#f58231','#911eb4','#46f0f0','#f032e6','#bcf60c'];
     participants.forEach((p, idx) => {
       const hist = p.scoreHistory || p.score_history || [];
       if (!hist || hist.length === 0) return;
       const color = colors[idx % colors.length]; ctx.strokeStyle = color; ctx.lineWidth = 2; ctx.beginPath();
-      hist.forEach((val, j) => { const x = margin + (j / Math.max(1, turns - 1)) * plotW; const y = margin + plotH - (val / maxScore) * plotH; if (j === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y); }); ctx.stroke();
+      // start at turn 0,0
+      const x0 = margin + (0 / Math.max(1, turns - 1)) * plotW; const y0 = margin + plotH - ((0 - minScore) / range) * plotH; ctx.moveTo(x0, y0);
+      hist.forEach((val, j) => { const idxX = j + 1; const x = margin + (idxX / Math.max(1, turns - 1)) * plotW; const y = margin + plotH - ((val - minScore) / range) * plotH; ctx.lineTo(x, y); }); ctx.stroke();
       const ly = 8 + idx * 14; ctx.fillStyle = color; ctx.fillRect(w - margin - 80, ly - 8, 10, 8); ctx.fillStyle = '#000'; ctx.fillText(p.username, w - margin - 64, ly);
     });
+  }
+
+  function renderGameSettings(game) {
+    if (!game || !gameSettingsEl) return;
+    const get = (o, a, b) => (o && (o[a] != null ? o[a] : (o[b] != null ? o[b] : undefined)));
+    const historyLimit = get(game, 'history_limit', 'historyLimit');
+    const payoff = get(game, 'payoff_matrix', 'payoffMatrix');
+    const maxPlayers = get(game, 'maxPlayers', 'max_players');
+    const endChance = get(game, 'end_chance', 'endChance');
+    const errorChance = get(game, 'error_chance', 'errorChance');
+    const created = get(game, 'created_at', 'createdAt');
+    const rows = [];
+    if (maxPlayers != null) rows.push(`<div class="game-setting-row"><label>Max players:</label><input class="game-setting-input" disabled value="${String(maxPlayers)}"></div>`);
+    if (historyLimit != null) rows.push(`<div class="game-setting-row"><label>History limit:</label><input class="game-setting-input" disabled value="${String(historyLimit)}"></div>`);
+    if (payoff != null) {
+      // helper to normalize into { matrix, rowLabels, colLabels }
+      function normalizeMatrixWithLabels(p) {
+        const titleize = s => (typeof s === 'string') ? String(s).replace(/_/g,' ').replace(/\b\w/g,ch=>ch.toUpperCase()) : s;
+        if (!p && p !== 0) return null;
+        if (Array.isArray(p)) return { matrix: p.map(r => Array.isArray(r) ? r : (r && typeof r === 'object' ? Object.values(r) : [r])), rowLabels: null, colLabels: null };
+        if (typeof p === 'string') {
+          try { const parsed = JSON.parse(p); return normalizeMatrixWithLabels(parsed); } catch (e) {}
+          const rowsStr = p.split(/\s*;\s*/).map(r => r.trim()).filter(Boolean);
+          if (rowsStr.length > 1) return { matrix: rowsStr.map(r => r.split(/\s*,\s*/).map(v => (v === '' ? '' : (isFinite(v) ? Number(v) : v)))), rowLabels: null, colLabels: null };
+          return null;
+        }
+        if (typeof p === 'object') {
+          const keys = Object.keys(p);
+          // detect flat map like 'r_c'
+          const flat = keys.length && keys.every(k => typeof k === 'string' && k.indexOf('_') > -1 && (typeof p[k] === 'number' || typeof p[k] === 'string'));
+          if (flat) {
+            const rowsSet = new Set(); const colsSet = new Set();
+            keys.forEach(k => { const [r,c] = k.split('_'); rowsSet.add(r); colsSet.add(c); });
+            const rowKeys = Array.from(rowsSet).sort();
+            const colKeys = Array.from(colsSet).sort();
+            const matrix = rowKeys.map(r => colKeys.map(c => p[`${r}_${c}`] != null ? p[`${r}_${c}`] : ''));
+            return { matrix, rowLabels: rowKeys.map(titleize), colLabels: colKeys.map(titleize) };
+          }
+          // nested object { row: { col: val } }
+          const rowKeys = Object.keys(p).sort();
+          const rowLabels = rowKeys.map(k => titleize(k));
+          let colKeysUnion = new Set();
+          rowKeys.forEach(rk => { const row = p[rk]; if (row && typeof row === 'object') Object.keys(row).forEach(c => colKeysUnion.add(c)); });
+          const colKeys = Array.from(colKeysUnion).sort();
+          const matrix = rowKeys.map(rk => {
+            const row = p[rk];
+            if (row && typeof row === 'object') return colKeys.map(ck => row[ck] != null ? row[ck] : '');
+            return colKeys.map(_ => '');
+          });
+          return { matrix, rowLabels, colLabels: colKeys.map(titleize) };
+        }
+        return null;
+      }
+      const norm = normalizeMatrixWithLabels(payoff);
+      if (norm && norm.matrix && Array.isArray(norm.matrix) && norm.matrix.length && norm.matrix.every(r => Array.isArray(r))) {
+        const matrix = norm.matrix;
+        const cols = Math.max(...matrix.map(r => (r||[]).length));
+        const colLabels = norm.colLabels || new Array(cols).fill(0).map((_,i)=>`Choice ${i}`);
+        const rowLabels = norm.rowLabels || matrix.map((_,i)=>`Choice ${i}`);
+        const headerRow = `<tr><td></td>${colLabels.map(h => `<td class="muted">${h}</td>`).join('')}</tr>`;
+        const tableRows = matrix.map((r, ri) => `<tr><td class="muted">${rowLabels[ri] || ''}</td>${new Array(cols).fill(0).map((_,ci)=>`<td><input class="payoff-input" disabled value="${String((r||[])[ci] != null ? (r||[])[ci] : '')}"></td>`).join('')}</tr>`).join('');
+        rows.push(`<div><strong>Payoff:</strong></div><div style="overflow:auto;margin-top:6px"><table class="payoff-table">${headerRow}${tableRows}</table></div>`);
+      } else {
+        try { rows.push(`<div><strong>Payoff:</strong> <small>${typeof payoff === 'object' ? JSON.stringify(payoff) : String(payoff)}</small></div>`); } catch (e) { rows.push(`<div><strong>Payoff:</strong> <small>Unavailable</small></div>`); }
+      }
+    }
+    if (endChance != null) rows.push(`<div class="game-setting-row"><label>End chance (%):</label><div style="display:flex;align-items:center"><input class="game-setting-input" disabled value="${String(endChance)}"><span class="percent-suffix">%</span></div></div>`);
+    if (errorChance != null) rows.push(`<div class="game-setting-row"><label>Error chance (%):</label><div style="display:flex;align-items:center"><input class="game-setting-input" disabled value="${String(errorChance)}"><span class="percent-suffix">%</span></div></div>`);
+    if (created) rows.push(`<div class="muted" style="margin-top:6px;font-size:0.85rem">Created: ${String(created)}</div>`);
+    gameSettingsEl.innerHTML = rows.length ? rows.join('') : '(no settings available)';
   }
 
   async function joinAsUser() {
@@ -155,6 +236,7 @@
     if (!info) return;
     renderStatus(info.game);
     renderPlayers(info.players || []);
+    renderGameSettings(info.game);
     // show game name
     try { document.getElementById('gameNameDisplay').textContent = info.game && info.game.name ? info.game.name : (gameId || '—'); } catch (e) {}
 
@@ -334,7 +416,7 @@
   // initial load for UI elements
   (async function init() {
     if (!gameId) { statusEl.textContent = 'No gameId in URL'; playersList.textContent = ''; return; }
-    const info = await fetchPublicInfo(); if (info) { renderStatus(info.game); renderPlayers(info.players || []); }
+    const info = await fetchPublicInfo(); if (info) { renderStatus(info.game); renderPlayers(info.players || []); renderGameSettings(info.game); }
     const hist = await fetchScoreHistory(); if (hist) drawScoreChart(hist);
   })();
 

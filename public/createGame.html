@@ -3,62 +3,76 @@
 <head>
   <meta charset="utf-8" />
   <title>Create Game</title>
+  <link rel="stylesheet" href="/styles.css">
 </head>
 <body>
-  <h1>Create New Game</h1>
+  <div class="page">
+    <div class="card">
+      <h1>Create New Game</h1>
+      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap">
+        <div>Game ID: <strong><span id="gameIdDisplay">(pending)</span></strong></div>
+        <div style="display:flex;gap:8px;align-items:center">
+          <div id="hostInfo" class="muted">Checking session...</div>
+          <button onclick="window.location.href='/rules.html'" class="secondary">Rules</button>
+        </div>
+      </div>
 
-  <h2>Game ID: <span id="gameIdDisplay">(pending)</span></h2>
-  <label>Game Name (required):</label>
-  <input id="gameName" type="text" required />
-  <br><br>
-  <h3>Host profile</h3>
-  <div id="hostInfo">Checking session...</div>
+      <div style="margin-top:12px">
+        <label>Game Name (required):</label>
+        <input id="gameName" type="text" required />
+      </div>
 
-  <h3>Payoff Matrix</h3>
+      <h3>Payoff Matrix</h3>
+      <div class="card">
+        <table style="width:100%;border-collapse:collapse">
+          <tr>
+            <td></td>
+            <td class="muted">Peace</td>
+            <td class="muted">War</td>
+          </tr>
+          <tr>
+            <td class="muted">Peace</td>
+            <td><input id="pp" type="number" value="2"/></td>
+            <td><input id="pw" type="number" value="0"/></td>
+          </tr>
+          <tr>
+            <td class="muted">War</td>
+            <td><input id="wp" type="number" value="3"/></td>
+            <td><input id="ww" type="number" value="1"/></td>
+          </tr>
+        </table>
+      </div>
 
-  <table border="1">
-    <tr>
-      <td></td>
-      <td>Peace</td>
-      <td>War</td>
-    </tr>
-    <tr>
-      <td>Peace</td>
-      <td><input id="pp" type="number" value="2"/></td>
-      <td><input id="pw" type="number" value="0"/></td>
-    </tr>
-    <tr>
-      <td>War</td>
-      <td><input id="wp" type="number" value="3"/></td>
-      <td><input id="ww" type="number" value="1"/></td>
-    </tr>
-  </table>
+      <h3>Game Settings</h3>
+      <div class="form-row">
+        <div style="flex:1">
+          <label>Error Chance (0–100%):</label>
+          <input id="errorChance" type="number" step="1" min="0" max="100" value="5" required/>
+        </div>
+        <div style="flex:1">
+          <label>End Chance Per Turn (1–99%):</label>
+          <input id="endChance" type="number" min="1" max="99" value="5" required />
+        </div>
+      </div>
 
-  <h3>Game Settings</h3>
+      <div class="form-row">
+        <div style="flex:1">
+          <label>History Limit (-1 for unlimited):</label>
+          <input id="historyLimit" type="number" value="5" required/>
+        </div>
+        <div style="flex:1">
+          <label>Max Players (2–40):</label>
+          <input id="maxPlayers" type="number" min="2" max="40" value="6" required/>
+        </div>
+      </div>
 
-  <label>Error Chance (0–100%):</label>
-  <input id="errorChance" type="number" step="1" min="0" max="100" value="5" required/>
+      <div style="margin-top:12px">
+        <button id="registerBtn">Register Game</button>
+      </div>
+    </div>
 
-  <br><br>
-
-  <label>End Chance Per Turn (1–99%):</label>
-  <input id="endChance" type="number" min="1" max="99" value="5" required />
-
-  <br><br>
-
-  <label>History Limit (-1 for unlimited):</label>
-  <input id="historyLimit" type="number" value="5" required/>
-
-  <br><br>
-
-  <label>Max Players (2–40):</label>
-  <input id="maxPlayers" type="number" min="2" max="40" value="6" required/>
-
-  <br><br>
-
-  <button id="registerBtn">Register Game</button>
-
-  <script src="/api.js"></script>
-  <script src="/createGame.js"></script>
+    <script src="/api.js"></script>
+    <script src="/createGame.js"></script>
+  </div>
 </body>
 </html>

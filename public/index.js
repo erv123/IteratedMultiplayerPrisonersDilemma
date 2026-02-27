@@ -28,9 +28,6 @@ Required exported / top-level functions (documented here for tests):
 - makeGameLink(gameId) : HTMLAnchorElement
   - Description: DOM helper to create a link to `gameInfo.html?gameId=`
 
-- stageKey(stageNum) : string
-  - Description: map numeric stage to string key `not_started|started|completed`
-
 All functions return consistent behavior and emit UI updates rather than throwing for recoverable network errors.
 */
 
@@ -120,7 +117,8 @@ function updateAuthUI() {
   if (loggedInNow) {
     loginForm.style.display = 'none';
     loggedInActions.style.display = 'block';
-    document.getElementById('welcomeMsg').textContent = `Hello, ${session.user.username}`;
+    // show only the username; the surrounding markup includes a 'Welcome,' label
+    document.getElementById('welcomeMsg').textContent = session.user.username;
   } else {
     loginForm.style.display = '';
     loggedInActions.style.display = 'none';
@@ -180,20 +178,6 @@ async function logout() {
   fetchGameList();
 }
 
-function stageKey(stageNum) {
-  // Accept numeric or string inputs. If already a known key, return it.
-  if (typeof stageNum === 'string') {
-    const s = stageNum.trim();
-    if (s === 'not_started' || s === 'started' || s === 'completed') return s;
-  }
-  const n = Number(stageNum);
-  if (!Number.isNaN(n)) {
-    if (n === 1) return 'not_started';
-    if (n === 2) return 'started';
-  }
-  return 'completed';
-}
-
 function makeGameLink(gameId, name) {
   const a = document.createElement('a');
   a.href = `/gameInfo?gameId=${encodeURIComponent(gameId)}`;
@@ -201,6 +185,13 @@ function makeGameLink(gameId, name) {
   a.style.textDecoration = 'none';
   a.style.color = 'blue';
   return a;
+}
+
+function stageLabel(n) {
+  const num = Number(n);
+  if (num === 1) return 'Not Started';
+  if (num === 2) return 'Started';
+  return 'Completed';
 }
 
 async function renderGameListFromRows(rows) {
@@ -245,24 +236,22 @@ async function renderGameListFromRows(rows) {
   if (!loggedIn) {
     console.log('renderGameListFromRows: rendering public (not logged in) view');
     const body = ensureSection(container, 'allGames', 'All Games');
-      const subs = { not_started: [], started: [], completed: [] };
-      games.forEach(g => {
-        const sNum = Number(g.info.game && g.info.game.stage);
-        const stage = (sNum === 1) ? 'not_started' : (sNum === 2) ? 'started' : 'completed';
-        subs[stage].push(g);
-      });
+    const subs = { 1: [], 2: [], 3: [] };
+    games.forEach(g => {
+      const sNum = Number(g.info.game && g.info.game.stage) || 3;
+      const stageNum = (sNum === 1) ? 1 : (sNum === 2) ? 2 : 3;
+      subs[stageNum].push(g);
+    });
 
     const currentIds = new Set();
     Object.entries(subs).forEach(([k, list]) => {
       const subKey = `all-${k}`;
       let subBody = body.querySelector(`[data-subsection="${subKey}"]`);
       if (!subBody) {
-        const sh = document.createElement('h5'); sh.textContent = k.replace('_', ' ').replace(/\b\w/g, c => c.toUpperCase());
+        const sh = document.createElement('h5'); sh.textContent = stageLabel(k);
         body.appendChild(sh);
         subBody = document.createElement('div'); subBody.setAttribute('data-subsection', subKey);
         body.appendChild(subBody);
-      } else {
-        // keep existing subBody
       }
 
       list.forEach(item => {
@@ -271,7 +260,7 @@ async function renderGameListFromRows(rows) {
         const host = (item.info.players || []).find(p => p.is_host || p.isHost);
         const currentCount = (item.info && item.info.players) ? (item.info.players.length) : (item.info.game && (item.info.game.currentPlayers || item.info.game.current_players) || 0);
         const maxCount = (item.info && item.info.game) ? (item.info.game.maxPlayers || item.info.game.max_players || 0) : 0;
-        const textKey = JSON.stringify({ stage: k, current: currentCount, max: maxCount, host: host && host.username });
+        const textKey = JSON.stringify({ stage: Number(k), current: currentCount, max: maxCount, host: host && host.username });
         const prev = _prevGameRenderMap.get(id);
         let row = subBody.querySelector(`[data-game-id="${id}"]`);
         if (prev === textKey && row) { console.log('renderGameListFromRows: skip unchanged', id); return; }
@@ -304,13 +293,13 @@ async function renderGameListFromRows(rows) {
     return;
   }
 
-  // Logged in view: My Games and Other Games
-  const myGames = { not_started: [], started: [], completed: [] };
-  const otherGames = { not_started: [], started: [], completed: [] };
+  // Logged in view: My Games and Other Games (bucketed by numeric stage 1/2/3)
+  const myGames = { 1: [], 2: [], 3: [] };
+  const otherGames = { 1: [], 2: [], 3: [] };
   const uid = session.user && session.user.id;
   games.forEach(g => {
-    const sNum = Number(g.info.game && g.info.game.stage);
-    const stage = (sNum === 1) ? 'not_started' : (sNum === 2) ? 'started' : 'completed';
+    const sNum = Number(g.info.game && g.info.game.stage) || 3;
+    const stage = (sNum === 1) ? 1 : (sNum === 2) ? 2 : 3;
     const players = g.info.players || [];
     // My games are games where the current user is a participant (joined), not just the host
     const isMine = players.some(p => (p.user_id && uid && p.user_id === uid) || (p.id && uid && p.id === uid) || (p.username && session.user && p.username === session.user.username));
@@ -326,7 +315,7 @@ async function renderGameListFromRows(rows) {
       const subKey = `${containerKey}-${k}`;
       let subBody = body.querySelector(`[data-subsection="${subKey}"]`);
       if (!subBody) {
-        const sh = document.createElement('h5'); sh.textContent = k.replace('_', ' ').replace(/\b\w/g, c => c.toUpperCase());
+        const sh = document.createElement('h5'); sh.textContent = stageLabel(k);
         body.appendChild(sh);
         subBody = document.createElement('div'); subBody.setAttribute('data-subsection', subKey);
         body.appendChild(subBody);

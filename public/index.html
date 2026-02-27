@@ -3,29 +3,51 @@
 <head>
   <meta charset="utf-8" />
   <title>Game Lobby</title>
+  <link rel="stylesheet" href="/styles.css">
 </head>
 <body>
-  <h1>Create or Join Game</h1>
+  <div class="page">
+    <header class="topbar card" style="justify-content:space-between;">
+      <div class="brand">Iterated Prisoners Dilemma</div>
+        <div style="display:flex;gap:10px;align-items:center">
+        <button id="createGameBtn">Create Game</button>
+        <button onclick="window.location.href='/rules.html'" class="secondary" style="margin-left:8px">Rules</button>
+      </div>
+    </header>
 
-  <button id="createGameBtn">Create Game</button>
+    <main class="lobby-main">
+      <aside>
+        <div class="card">
+          <h3>Sign In</h3>
+          <div id="authArea">
+            <div id="loginForm" class="form-row">
+              <input id="username" placeholder="Username" />
+              <input id="password" type="password" placeholder="Password" />
+            </div>
+            <div style="display:flex;gap:8px;margin-top:8px">
+              <button id="loginBtn" class="secondary">Log In</button>
+              <button id="registerBtn" class="secondary">Register</button>
+            </div>
+            <div id="loggedInActions" style="display:none;margin-top:10px">
+              <div class="muted">Welcome, <span id="welcomeMsg"></span></div>
+              <div style="margin-top:8px;display:flex;gap:8px">
+                <button id="profileBtn" class="secondary">Profile</button>
+                <button id="logoutBtn" class="secondary">Log Out</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </aside>
 
-  <div id="authArea">
-    <div id="loginForm">
-      <input id="username" placeholder="Username" />
-      <input id="password" type="password" placeholder="Password" />
-      <button id="loginBtn">Log In</button>
-      <button id="registerBtn">Register</button>
-    </div>
-    <div id="loggedInActions" style="display:none;">
-      <span id="welcomeMsg"></span>
-      <button id="profileBtn">Profile</button>
-      <button id="logoutBtn">Log Out</button>
-    </div>
+      <section>
+        <div class="card">
+          <h2>Active Games</h2>
+          <div id="gamesContainer" style="margin-top:8px"></div>
+          <p id="output" class="muted" style="margin-top:8px"></p>
+        </div>
+      </section>
+    </main>
   </div>
-
-  <h3>Active Games:</h3>
-  <div id="gamesContainer"></div>
-  <p id="output"></p>
 
   <script src="api.js"></script>
   <script src="polling.js"></script>

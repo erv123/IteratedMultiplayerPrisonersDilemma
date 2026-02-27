@@ -57,6 +57,10 @@ async function startGame(gameId, hostParticipantId) {
   // Validate host
   const host = await db.getAsync('SELECT * FROM participants WHERE id = ? AND game_id = ? AND is_host = 1', [hostParticipantId, gameId]);
   if (!host) return { success: false, error: { code: 'FORBIDDEN', message: 'Only host may start game' } };
+  // Ensure minimum participants
+  const countRow = await db.getAsync('SELECT COUNT(1) as cnt FROM participants WHERE game_id = ?', [gameId]);
+  const cnt = countRow ? Number(countRow.cnt || 0) : 0;
+  if (cnt < 2) return { success: false, error: { code: 'BAD_REQUEST', message: 'At least two participants required to start the game' } };
   // mark game started and initialize first turn
   await db.runAsync('UPDATE games SET stage = 2, current_turn = 1 WHERE id = ?', [gameId]);
   return { success: true };

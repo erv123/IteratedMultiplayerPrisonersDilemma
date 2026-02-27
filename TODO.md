@@ -10,10 +10,21 @@ Game ui
     -~~Add score history tracking and plotting in game info~~
 Polishing:
     -~~Complete code refactor up to industry best practices if possible~~
-    -Dowload game button functionality
-    -Ui update to lightweigt but modern
+    -~~Dowload game button functionality~~
+    -~~Ui update to lightweigt but modern~~
+    -~~Rules screen~~
+    -game stettings can be updated by host in game info screen
+    -profile page
+    -create game lobby buttond
+    -extract a generic table renderer to be used across the page to align table structure and have a cell styles for each kind of cell to allow replicating functionality
+    -top bar in game left aligned in thin display. link cleanup
 
-do a complete ui overhaul. the ui should be styled according to a central css file. limit editing the js files to only edit code directly affecting the ui and do not change any of the logic. make sure the ui works well on mobile. the style should remain ligtweight and not use any extra libraries but also the page shuld look modern and polished. make other stylistic choices as you see fit
+
+
+
+improve the leaderbard display and scale the top 3 player name size. add a trophy icon next to the top player. Add a similar leaderboard display to the game info screen but indicate which color does the player correspond to in the graph. improve the graph by writing the player names in a location based on the last plotted point for them and do not display the players color next to their username in the graph
+
+add a game/id/updateSettings end point to allow host user to update the game settings if the game is in stage 1. in the game settings section replace the number display by inputs containing the current game values. add a button to update scores. the display should also change to this only if user is host user if the game is in stage 1
 
 v2 feature update:
 
@@ -40,8 +51,7 @@ after each game the players see current leaderboard and who is playing agains wh
 
 each new challenge has a chance to be the last challenge. this chance maybe needs some function applied based on game turn count
 
-
 teams mode: 
 challenge mode but players are randomly assigned (or choose) their team. each game score is then scaled according to how many players from your team are in the game (less team mates = more points)
 
-at the end each teams combined score 
+teams are ranked based on their player total scored scaled according to the player count in that team
