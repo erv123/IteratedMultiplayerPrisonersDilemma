@@ -8,6 +8,23 @@
   }
 
   async function fetchJSON(path, options = {}) {
+    // Derive a normalized debug name from the path (replace ids with :id)
+    try {
+      const origPath = path || '';
+      const normalized = String(origPath)
+        // replace UUID-like segments
+        .replace(/\/[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}(?=\/|$)/g, '/:id')
+        // replace numeric segments
+        .replace(/\/\d+(?=\/|$)/g, '/:id')
+        // collapse multiple slashes
+        .replace(/\/+/g, '/')
+        .replace(/(^\/|\/$)/g, '');
+      const debugName = normalized.replace(/\//g, '.');
+      options.headers = Object.assign({}, options.headers || {}, { 'X-Debug-Name': debugName });
+    } catch (e) {
+      // ignore debug name failures
+    }
+
     const url = buildUrl(path);
     const opts = Object.assign({}, options);
     opts.credentials = opts.credentials || 'same-origin';

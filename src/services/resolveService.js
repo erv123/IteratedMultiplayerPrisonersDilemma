@@ -15,8 +15,8 @@ async function resolveTurn(gameId, turnNumber) {
       throw { code: 'NO_DATA', message: 'No choices for turn' };
     }
 
-    // Load game payoff matrix, error chance and max_turns
-    const gameRow = await db.getAsync('SELECT payoff_matrix, error_chance, max_turns FROM games WHERE id = ?', [gameId]);
+    // Load game payoff matrix, error chance and end_chance
+    const gameRow = await db.getAsync('SELECT payoff_matrix, error_chance, end_chance FROM games WHERE id = ?', [gameId]);
     const errorChance = gameRow ? Number(gameRow.error_chance || 0) : 0;
     let payoffMatrix = null;
     try { payoffMatrix = gameRow && gameRow.payoff_matrix ? JSON.parse(gameRow.payoff_matrix) : null; } catch (e) { payoffMatrix = null; }
@@ -86,11 +86,13 @@ async function resolveTurn(gameId, turnNumber) {
     await db.runAsync('UPDATE participants SET ready_for_next_turn = 0 WHERE game_id = ?', [gameId]);
     await db.runAsync('UPDATE games SET current_turn = current_turn + 1 WHERE id = ?', [gameId]);
 
-    // If this resolved turn was the last allowed turn, mark game as completed.
-    // gameRow.max_turns is expected to be an integer > 0.
-    const maxTurns = gameRow ? Number(gameRow.max_turns || 0) : 0;
-    if (maxTurns > 0 && Number(turnNumber) >= maxTurns) {
-      await db.runAsync('UPDATE games SET stage = ? WHERE id = ?', [3, gameId]);
+    // Per-turn end chance: each resolved turn has a percent probability to end the game.
+    const endChance = gameRow ? Number(gameRow.end_chance || 0) : 0;
+    if (endChance > 0) {
+      const roll = Math.random() * 100; // 0 <= roll < 100
+      if (roll < endChance) {
+        await db.runAsync('UPDATE games SET stage = ? WHERE id = ?', [3, gameId]);
+      }
     }
 
     return { success: true };

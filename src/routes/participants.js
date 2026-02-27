@@ -25,13 +25,33 @@ router.get('/me', async (req, res) => {
   }
 });
 
-router.get('/:participantId/myChoices', async (req, res) => {
+// Return recent resolved history for this participant (owner-only). Renamed from myChoices -> myHistory
+router.get('/:participantId/myHistory', async (req, res) => {
   try {
-    const pId = req.params.participantId;
-    const v = await verifyOwnership(req, pId);
+    const participantId = req.params.participantId;
+    const v = await verifyOwnership(req, participantId);
     if (!v.ok) return res.status(v.status).json({ success: false, error: v.error });
-    const rows = await require('../services/dbWrapper').allAsync('SELECT * FROM turns WHERE player_id = ? ORDER BY turn_number DESC', [pId]);
-    return res.json({ success: true, data: rows });
+    const p = v.participant;
+    const gameRow = await require('../services/dbWrapper').getAsync('SELECT history_limit FROM games WHERE id = ?', [p.game_id]);
+    const limit = gameRow ? gameRow.history_limit : 5;
+    const participantHistory = await require('../services/turnService').getPlayerHistory(p.game_id, participantId, limit);
+    // For each entry, fetch the opponent's applied choice against this participant for the same turn
+    const db = require('../services/dbWrapper');
+    const results = [];
+    for (const entry of (participantHistory || [])) {
+      const opponentId = entry.targetId;
+      const turnNumber = entry.turnNumber;
+      const oppRow = await db.getAsync('SELECT applied_choice, points_awarded FROM turns WHERE game_id = ? AND player_id = ? AND target_id = ? AND turn_number = ?', [p.game_id, opponentId, participantId, turnNumber]);
+      results.push({
+        participantId: participantId,
+        opponentId: opponentId,
+        turnNumber: turnNumber,
+        appliedChoice: entry.choice,
+        opponentChoice: oppRow ? oppRow.applied_choice : null,
+        pointsAwarded: entry.pointsAwarded,
+      });
+    }
+    return res.json({ success: true, data: results });
   } catch (err) {
     return res.status(500).json({ success: false, error: { code: 'SERVER_ERROR', message: err.message } });
   }
@@ -105,6 +125,24 @@ router.get('/:participantId/opponentHistory', async (req, res) => {
     }
 
     return res.json({ success: true, data: results });
+  } catch (err) {
+    return res.status(500).json({ success: false, error: { code: 'SERVER_ERROR', message: err.message } });
+  }
+});
+
+// Return active choices for the current turn for this participant (owner-only)
+router.get('/:participantId/activeChoices', async (req, res) => {
+  try {
+    const participantId = req.params.participantId;
+    const v = await verifyOwnership(req, participantId);
+    if (!v.ok) return res.status(v.status).json({ success: false, error: v.error });
+    const p = v.participant;
+    const g = await require('../services/dbWrapper').getAsync('SELECT current_turn FROM games WHERE id = ?', [p.game_id]);
+    const turnNumber = g ? g.current_turn : 0;
+    const rows = await require('../services/dbWrapper').allAsync('SELECT target_id, choice FROM turns WHERE game_id = ? AND player_id = ? AND turn_number = ?', [p.game_id, participantId, turnNumber]);
+    // normalize keys to targetId/choice
+    const mapped = (rows || []).map(r => ({ targetId: r.target_id || r.targetId, choice: r.choice }));
+    return res.json({ success: true, data: mapped });
   } catch (err) {
     return res.status(500).json({ success: false, error: { code: 'SERVER_ERROR', message: err.message } });
   }

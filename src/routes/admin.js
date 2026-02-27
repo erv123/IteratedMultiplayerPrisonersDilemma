@@ -28,4 +28,23 @@ router.post('/setResetBypass', requireAdmin, async (req, res) => {
   }
 });
 
+// Admin: delete a game and related data (uses foreign keys / transaction)
+router.delete('/games/:gameId', requireAdmin, async (req, res) => {
+  try {
+    const dbw = require('../services/dbWrapper');
+    const gameId = req.params.gameId;
+    const exists = await db.getAsync('SELECT id FROM games WHERE id = ?', [gameId]);
+    if (!exists) return res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'Game not found' } });
+
+    await dbw.transaction(async () => {
+      // Delete the game row; cascading FKs should remove participants/turns
+      await dbw.runAsync('DELETE FROM games WHERE id = ?', [gameId]);
+    });
+
+    return res.json({ success: true });
+  } catch (err) {
+    return res.status(500).json({ success: false, error: { code: 'SERVER_ERROR', message: err.message } });
+  }
+});
+
 module.exports = router;

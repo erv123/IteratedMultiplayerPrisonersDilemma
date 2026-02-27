@@ -5,7 +5,7 @@ CREATE TABLE IF NOT EXISTS games (
   name TEXT NOT NULL,
   stage INTEGER NOT NULL,
   current_turn INTEGER DEFAULT 0,
-  max_turns INTEGER NOT NULL,
+  end_chance INTEGER DEFAULT 0,
   history_limit INTEGER DEFAULT 5,
   payoff_matrix TEXT NOT NULL DEFAULT '[]',
   error_chance INTEGER DEFAULT 0,

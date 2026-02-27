@@ -16,7 +16,8 @@
 
   let sessionUser = null;
   let myParticipantId = null;
-  let myChoices = {}; // map targetId -> 'peace'|'war'
+  let activeChoices = {}; // map targetId -> 'peace'|'war' for current turn
+  let myHistory = []; // resolved history entries for logged-in participant
   let _prevHistoryHtml = '';
   let _prevReadyFlag = null;
   let currentTurn = 0;
@@ -48,21 +49,31 @@
     } catch (e) { console.error('fetchGameInfo error', e); return null; }
   }
 
-  async function fetchMyChoices(participantId) {
+  // Fetch active choices for the current turn for this participant
+  async function fetchActiveChoices(participantId) {
     if (!participantId) return {};
     try {
-      const r = await window.api.get(`/participants/${encodeURIComponent(participantId)}/myChoices`);
+      const r = await window.api.get(`/participants/${encodeURIComponent(participantId)}/activeChoices`);
       if (!r || !r.success) return {};
-      // convert array of { targetId/target_id, turnNumber/turn_number, choice } into map for current turn
       const rows = Array.isArray(r.data) ? r.data : [];
       const map = {};
       rows.forEach(rr => {
-        const tid = rr.target_id !== undefined ? rr.target_id : rr.targetId;
+        const tid = rr.target_id !== undefined ? rr.target_id : (rr.targetId !== undefined ? rr.targetId : rr.targetId);
         const choice = rr.choice;
         if (tid !== undefined && choice !== undefined) map[String(tid)] = choice;
       });
       return map;
-    } catch (e) { console.error('fetchMyChoices failed', e); return {}; }
+    } catch (e) { console.error('fetchActiveChoices failed', e); return {}; }
+  }
+
+  // Fetch resolved history for this participant (owner-only)
+  async function fetchMyHistory(participantId) {
+    if (!participantId) return [];
+    try {
+      const r = await window.api.get(`/participants/${encodeURIComponent(participantId)}/myHistory`);
+      if (!r || !r.success) return [];
+      return Array.isArray(r.data) ? r.data : [];
+    } catch (e) { console.error('fetchMyHistory failed', e); return []; }
   }
 
   function renderLeaderboard(players) {
@@ -112,7 +123,7 @@
       myParticipantId = null;
     }
 
-    // NOTE: server choices are fetched in the poller and merged into `myChoices` there to avoid extra fetches.
+    // NOTE: server choices are fetched in the poller and stored in `activeChoices` (authoritative for current turn).
 
     // update ready header text
     const readyCount = players.reduce((c,p)=> c + (Number(p.ready_for_next_turn||p.readyForNextTurn||0)===1 ? 1 : 0), 0);
@@ -134,7 +145,7 @@
       warBtn.addEventListener('click', () => selectChoice(p.id, 'war'));
 
       // apply existing selected state (only change classes if needed)
-      const sel = myChoices[String(p.id)]; if (sel) applySelectedStyles(row, sel);
+      const sel = activeChoices[String(p.id)]; if (sel) applySelectedStyles(row, sel);
 
       playerListEl.appendChild(row);
     });
@@ -149,13 +160,13 @@
       if (_prevReadyFlag === 1) disableTurnUI(); else enableTurnUI();
     }
 
-    // No post-render fetch needed — rows were created using `myChoices`.
+    // No post-render fetch needed — rows were created using `activeChoices`.
   }
 
   async function selectChoice(targetId, choice) {
     if (!myParticipantId) return alert('Not a participant');
-    // optimistic UI
-    myChoices[String(targetId)] = choice;
+    // optimistic UI (apply immediately; will be reconciled with server authoritative data)
+    activeChoices[String(targetId)] = choice;
     const row = document.querySelector(`.player-row[data-player-id="${targetId}"]`);
     if (row) applySelectedStyles(row, choice);
     try {
@@ -167,13 +178,20 @@
 
   async function endTurn() {
     if (!myParticipantId) return alert('Not a participant');
-    const opponentIds = Array.from(document.querySelectorAll('.player-row')).map(r => r.dataset.playerId);
-    const missing = opponentIds.find(id => !myChoices[String(id)]);
-    if (missing) return alert('You must choose Peace or War for every player.');
+    // verify against authoritative server choices that player has made a choice for every opponent
+    try {
+      const opponentIds = Array.from(document.querySelectorAll('.player-row')).map(r => r.dataset.playerId);
+      const serverChoices = await fetchActiveChoices(myParticipantId);
+      const missing = opponentIds.find(id => !serverChoices[String(id)]);
+      if (missing) return alert('You must choose Peace or War for every player.');
+    } catch (e) {
+      console.error('failed to verify choices before submit', e);
+      return alert('Failed to verify choices before submitting turn');
+    }
     try {
       await window.api.post(`/participants/${encodeURIComponent(myParticipantId)}/submit`, {});
       // clear local optimistic choices and reset button formatting
-      myChoices = {};
+      activeChoices = {};
       const rows = Array.from(document.querySelectorAll('.player-row'));
       rows.forEach(r => applySelectedStyles(r, null));
       // force re-apply formatting when needed
@@ -186,13 +204,11 @@
   async function renderTurnHistory(gameIdParam, participantIdParam) {
     if (!gameIdParam) return;
     if (!participantIdParam) { historyContainer.innerHTML = '(history available to participants only)'; return; }
-      try {
-        const oppRes = await window.api.get(`/participants/${encodeURIComponent(participantIdParam)}/opponentHistory`).catch(() => null);
-        if (!oppRes || !oppRes.success) { historyContainer.innerHTML = '(no history or not authorized)'; return; }
-        const entries = Array.isArray(oppRes.data) ? oppRes.data : [];
-        if (!entries.length) { historyContainer.innerHTML = '(no history yet)'; return; }
+    try {
+      const entries = await fetchMyHistory(participantIdParam);
+      if (!entries || !entries.length) { historyContainer.innerHTML = '(no history yet)'; return; }
 
-        // collect turns and opponent ids
+      // collect turns and opponent ids
         const turnSet = new Set();
         const oppSet = new Set();
         entries.forEach(e => {
@@ -241,23 +257,23 @@
           });
           html += '</tr>';
         });
-        html += '</table>';
-        if (html === _prevHistoryHtml) return; _prevHistoryHtml = html; historyContainer.innerHTML = html;
-      } catch (e) { console.error('renderTurnHistory: fetch error', e); historyContainer.innerHTML = '(failed to load history)'; }
+      html += '</table>';
+      if (html === _prevHistoryHtml) return; _prevHistoryHtml = html; historyContainer.innerHTML = html;
+    } catch (e) { console.error('renderTurnHistory: fetch error', e); historyContainer.innerHTML = '(failed to load history)'; }
   }
 
   // Fetch authoritative choices for participant and apply formatting to rows
   async function reloadButtonFormatting(participantId) {
     if (!participantId) return;
     try {
-      const serverChoices = await fetchMyChoices(participantId);
-      // authoritative server choices replace previous server values but preserve optimistic picks if present
-      myChoices = Object.assign({}, serverChoices || {}, myChoices || {});
+      const serverChoices = await fetchActiveChoices(participantId);
+      // authoritative server choices replace previous server values
+      activeChoices = Object.assign({}, serverChoices || {});
       // apply to DOM rows
       const rows = Array.from(playerListEl.querySelectorAll('.player-row'));
       rows.forEach(r => {
         const pid = r.dataset.playerId;
-        const choice = myChoices[String(pid)] || null;
+        const choice = activeChoices[String(pid)] || null;
         applySelectedStyles(r, choice);
       });
     } catch (e) { console.error('reloadButtonFormatting error', e); }
@@ -291,17 +307,17 @@
 
     // Clear local optimistic choices when a new turn begins
     if (_prevTurn !== null && currentTurn !== null && _prevTurn !== currentTurn) {
-      myChoices = {};
+      activeChoices = {};
       _prevButtonFormattingKey = null; // force re-apply formatting on new turn
     }
 
-    // Fetch authoritative server choices once per poll (merge with optimistic local picks)
+    // Fetch authoritative server choices once per poll (server is authoritative)
     if (myParticipantId) {
       try {
-        const serverChoices = await fetchMyChoices(myParticipantId);
-        myChoices = Object.assign({}, serverChoices || {}, myChoices || {}); // server values first, keep local optimistic as override
-      } catch (e) { console.error('fetchMyChoices failed', e); }
-    } else { myChoices = {}; }
+        const serverChoices = await fetchActiveChoices(myParticipantId);
+        activeChoices = Object.assign({}, serverChoices || {}); // server choices are authoritative
+      } catch (e) { console.error('fetchActiveChoices failed', e); activeChoices = {}; }
+    } else { activeChoices = {}; }
     _prevTurn = currentTurn;
 
     // Build a compact players key to detect changes and avoid unnecessary redraws
@@ -314,7 +330,7 @@
     }
 
     // Apply button formatting only when choices or participant id change
-    const buttonKey = JSON.stringify({ participantId: myParticipantId, choices: myChoices || {}, turn: currentTurn });
+    const buttonKey = JSON.stringify({ participantId: myParticipantId, choices: activeChoices || {}, turn: currentTurn });
     if (buttonKey !== _prevButtonFormattingKey) {
       await reloadButtonFormatting(myParticipantId);
       _prevButtonFormattingKey = buttonKey;
@@ -328,8 +344,30 @@
     if (!meRow) meRow = players.find(p => p.id === myParticipantId);
     const rawReady = meRow ? (meRow.ready_for_next_turn !== undefined ? meRow.ready_for_next_turn : (meRow.readyForNextTurn !== undefined ? meRow.readyForNextTurn : null)) : null;
     const myReady = rawReady === null ? null : (Number(rawReady) === 1 ? 1 : 0);
+    // If participant ready-state changed, update UI and header. Also show waiting header when this participant is ready
     if (_prevReadyFlag !== myReady) {
-      if (myReady === 1) disableTurnUI(); else if (myReady === 0) enableTurnUI(); _prevReadyFlag = myReady;
+      if (myReady === 1) disableTurnUI(); else if (myReady === 0) enableTurnUI();
+      _prevReadyFlag = myReady;
+    }
+
+    // When this participant is ready, fetch turnState to show waiting counts and allow server to resolve when all ready
+    if (myReady === 1) {
+      try {
+        const ts = await window.api.get(`/games/${encodeURIComponent(gameId)}/turnState`);
+        if (ts && ts.success && ts.data) {
+          const total = Number(ts.data.totalParticipants || 0);
+          const ready = Number(ts.data.readyParticipants || 0);
+          actionHeader.textContent = `Waiting for others (${ready}/${total} ready)`;
+        } else {
+          actionHeader.textContent = 'Waiting for others';
+        }
+      } catch (e) {
+        console.error('turnState fetch failed', e);
+        actionHeader.textContent = 'Waiting for others';
+      }
+    } else {
+      // not ready: show default prompt when participant
+      if (myParticipantId) actionHeader.textContent = 'Choose Your Actions';
     }
 
     // leaderboard reflects scores and can update more often; update regardless
@@ -367,9 +405,9 @@
         }
       }
 
-      // fetch initial server choices so the first render is styled
+      // fetch initial server choices so the first render is styled (active choices for current turn)
       if (myParticipantId) {
-        try { myChoices = await fetchMyChoices(myParticipantId); } catch (e) { myChoices = {}; }
+        try { activeChoices = await fetchActiveChoices(myParticipantId); } catch (e) { activeChoices = {}; }
       }
 
       // render leaderboard and players
@@ -380,7 +418,7 @@
       _prevTurn = currentTurn;
       _prevPlayersKey = (info.players || []).map(p => `${p.id}:${p.username||''}:${p.total_score||p.totalScore||0}:${p.ready_for_next_turn||p.readyForNextTurn||0}`).join('|');
       _prevParticipantId = myParticipantId;
-      _prevButtonFormattingKey = JSON.stringify({ participantId: myParticipantId, choices: myChoices || {}, turn: currentTurn });
+      _prevButtonFormattingKey = JSON.stringify({ participantId: myParticipantId, choices: activeChoices || {}, turn: currentTurn });
 
       // determine initial ready-state from participant row if available
       try {
@@ -393,6 +431,11 @@
           if (myReady === 1) disableTurnUI(); else if (myReady === 0) enableTurnUI();
         }
       } catch (e) { /* ignore */ }
+
+      // fetch initial active choices so the first render is styled
+      if (myParticipantId) {
+        try { activeChoices = await fetchActiveChoices(myParticipantId); } catch (e) { activeChoices = {}; }
+      }
 
       // render history for initial view (only if participant)
       try { await renderTurnHistory(gameId, myParticipantId); } catch (e) { /* ignore */ }

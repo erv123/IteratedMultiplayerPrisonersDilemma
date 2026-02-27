@@ -8,7 +8,7 @@ async function createGame(payload, hostUser) {
   if (!name) throw new Error('Game name required');
   const stage = 1;
   const current_turn = 0;
-  const max_turns = payload.maxTurns || null;
+  const end_chance = Number(payload.endChance || 0);
   const history_limit = typeof payload.historyLimit === 'number' ? payload.historyLimit : 5;
   const payoff_matrix = JSON.stringify(payload.payoffMatrix || []);
   const error_chance = Number(payload.errorChance || 0);
@@ -16,9 +16,9 @@ async function createGame(payload, hostUser) {
 
   return db.transaction(async () => {
     await db.runAsync(
-      `INSERT INTO games (id, name, stage, current_turn, max_turns, history_limit, payoff_matrix, error_chance, max_players, current_players, created_at)
+      `INSERT INTO games (id, name, stage, current_turn, end_chance, history_limit, payoff_matrix, error_chance, max_players, current_players, created_at)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [id, name, stage, current_turn, max_turns, history_limit, payoff_matrix, error_chance, max_players, 1, now]
+      [id, name, stage, current_turn, end_chance, history_limit, payoff_matrix, error_chance, max_players, 1, now]
     );
 
     const participantId = uuidv4();
@@ -43,7 +43,7 @@ async function getGame(gameId) {
     name: row.name,
     stage: row.stage,
     currentTurn: row.current_turn,
-    maxTurns: row.max_turns,
+    endChance: row.end_chance,
     historyLimit: row.history_limit,
     payoffMatrix: JSON.parse(row.payoff_matrix || '[]'),
     errorChance: row.error_chance,

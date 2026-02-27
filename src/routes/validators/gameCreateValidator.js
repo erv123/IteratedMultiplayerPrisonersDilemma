@@ -22,20 +22,20 @@ const gameCreateValidator = [
     .withMessage('errorChance must be a number between 0 and 100')
     .toFloat(),
 
-  body('maxTurns')
+  body('endChance')
     .exists({ checkNull: true, checkFalsy: true })
-    .withMessage('maxTurns is required')
+    .withMessage('endChance is required')
     .bail()
-    .isInt({ min: 1 })
-    .withMessage('maxTurns must be an integer >= 1')
+    .isInt({ min: 1, max: 99 })
+    .withMessage('endChance must be an integer between 1 and 99')
     .toInt(),
 
   body('maxPlayers')
     .exists()
     .withMessage('maxPlayers is required')
     .bail()
-    .isInt({ min: 1 })
-    .withMessage('maxPlayers must be an integer >= 1')
+    .isInt({ min: 2, max: 40 })
+    .withMessage('maxPlayers must be an integer between 2 and 40')
     .toInt(),
 
   body('historyLimit')
