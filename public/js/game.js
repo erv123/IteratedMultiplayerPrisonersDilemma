@@ -4,7 +4,8 @@
 
   const gameIdRaw = getQueryParam('gameId');
   const gameId = gameIdRaw ? gameIdRaw.trim() : '';
-  document.getElementById('gameId').textContent = gameId || '—';
+  // show a brief placeholder until we fetch the game's metadata (name)
+  document.getElementById('gameId').textContent = 'Loading...';
 
   const usernameEl = document.getElementById('username');
   const turnDisplay = document.getElementById('turnDisplay');
@@ -13,6 +14,7 @@
   const leaderboardEl = document.getElementById('leaderboard');
   const historyContainer = document.getElementById('historyContainer');
   const endTurnBtn = document.getElementById('endTurnBtn');
+  const orderToggleEl = document.getElementById('orderToggle');
 
   let sessionUser = null;
   let myParticipantId = null;
@@ -25,6 +27,19 @@
   let _prevPlayersKey = null;
   let _prevButtonFormattingKey = null;
   let _prevParticipantId = null;
+  let latestPlayers = [];
+  // ordering preference: 'score' (default) or 'alpha'
+  let orderBy = (localStorage.getItem('orderBy') || 'score');
+  if (orderToggleEl) { orderToggleEl.value = orderBy; }
+
+  function setOrderPreference(val) {
+    orderBy = val === 'alpha' ? 'alpha' : 'score';
+    try { localStorage.setItem('orderBy', orderBy); } catch (e) {}
+    // refresh both tables
+    try { if (latestPlayers && latestPlayers.length) renderPlayers(latestPlayers); } catch (e) {}
+    try { renderTurnHistory(gameId, myParticipantId); } catch (e) {}
+  }
+  if (orderToggleEl) orderToggleEl.addEventListener('change', (e) => setOrderPreference(e.target.value));
 
   async function initSession() {
     try {
@@ -76,24 +91,68 @@
     } catch (e) { console.error('fetchMyHistory failed', e); return []; }
   }
 
+  // Fetch opponent-aware history for this participant (owner-only)
+  async function fetchOpponentHistory(participantId) {
+    if (!participantId) return [];
+    try {
+      const r = await window.api.get(`/participants/${encodeURIComponent(participantId)}/opponentHistory`);
+      if (!r) return { success: false, error: 'no response' };
+      if (!r.success) return { success: false, error: r.error || 'api error' };
+      return { success: true, data: Array.isArray(r.data) ? r.data : [] };
+    } catch (e) { console.error('fetchOpponentHistory failed', e); return []; }
+  }
+
   function renderLeaderboard(players) {
     if (!Array.isArray(players) || players.length === 0) { leaderboardEl.textContent = '(no players yet)'; return; }
-    leaderboardEl.innerHTML = '';
-    const list = document.createElement('div');
-    players.slice().sort((a,b)=> (b.total_score||0)-(a.total_score||0)).forEach(p => {
-      const d = document.createElement('div');
-      d.textContent = `${p.username || p.user_id || p.id} — ${p.total_score || p.totalScore || 0}`;
-      list.appendChild(d);
+    // Build sorted array and render with TableRenderer (no fallback)
+    const arr = (players || []).slice().map(p => ({ id: p.id, name: p.username || p.user_id || p.id, score: Number(p.total_score != null ? p.total_score : (p.totalScore != null ? p.totalScore : 0)) })).sort((a,b)=> b.score - a.score);
+    const schema = { columns: [ { key: 'rank', title: '#' }, { key: 'player', title: 'Player' }, { key: 'score', title: 'Score' } ] };
+    const rows = (arr || []).map((a, i) => {
+      const topClass = i === 0 ? 'leader-top1' : i === 1 ? 'leader-top2' : i === 2 ? 'leader-top3' : null;
+      return {
+        rank: { type: 'text', value: String(i+1), className: topClass },
+        player: { type: 'text', value: a.name, className: topClass },
+        score: { type: 'number', value: a.score, className: topClass }
+      };
     });
-    leaderboardEl.appendChild(list);
+    try {
+      if (!window.TableRenderer) throw new Error('TableRenderer not available');
+      const container = leaderboardEl;
+      const existingTable = container.querySelector('table.tbl');
+      if (existingTable) window.TableRenderer.updateRows(container, rows);
+      else window.TableRenderer.createTable(container, schema, rows, { compact: true });
+    } catch (e) {
+      console.error('renderLeaderboard error', e);
+      leaderboardEl.textContent = '(leaderboard unavailable)';
+    }
   }
 
   function clearPlayerList() { playerListEl.innerHTML = ''; }
 
-  function makeChoiceButton(label, cls) { const b = document.createElement('button'); b.textContent = label; b.className = `choice-btn ${cls}`; return b; }
+  // Returns true when the current session participant can make choices
+  function _canAct() {
+    if (!myParticipantId) return false;
+    // participant cannot act when already marked ready for next turn
+    if (_prevReadyFlag === 1) return false;
+    return true;
+  }
 
-  function disableTurnUI() { document.querySelectorAll('.choice-btn').forEach(b => b.disabled = true); if (endTurnBtn) endTurnBtn.disabled = true; }
-  function enableTurnUI() { document.querySelectorAll('.choice-btn').forEach(b => b.disabled = false); if (endTurnBtn) endTurnBtn.disabled = false; }
+  function disableTurnUI() {
+    document.querySelectorAll('.choice-btn').forEach(b => b.disabled = true);
+    if (endTurnBtn) endTurnBtn.disabled = true;
+    try {
+      const table = playerListEl && playerListEl.querySelector ? playerListEl.querySelector('table.tbl') : null;
+      if (table) table.querySelectorAll('button').forEach(b => b.disabled = true);
+    } catch (e) { /* ignore */ }
+  }
+  function enableTurnUI() {
+    document.querySelectorAll('.choice-btn').forEach(b => b.disabled = false);
+    if (endTurnBtn) endTurnBtn.disabled = false;
+    try {
+      const table = playerListEl && playerListEl.querySelector ? playerListEl.querySelector('table.tbl') : null;
+      if (table) table.querySelectorAll('button').forEach(b => b.disabled = false);
+    } catch (e) { /* ignore */ }
+  }
 
   function applySelectedStyles(rowEl, choice) {
     const pbtn = rowEl.querySelector('.peace-btn'); const wbtn = rowEl.querySelector('.war-btn');
@@ -117,58 +176,94 @@
 
     // determine my participant id from latest players list and sessionUser
     if (sessionUser && sessionUser.id !== undefined && sessionUser.id !== null) {
-      const me = players.find(p => (p.user_id !== undefined && p.user_id !== null && String(p.user_id) === String(sessionUser.id)) || p.username === sessionUser.username);
+      const me = players.find(p => (p.user_id !== undefined && p.user_id !== null && String(p.user_id) === String(sessionUser.id)) || (p.username && sessionUser.username && String(p.username).trim().toLowerCase() === String(sessionUser.username).trim().toLowerCase()));
       myParticipantId = me ? me.id : null;
     } else {
       myParticipantId = null;
     }
 
-    // NOTE: server choices are fetched in the poller and stored in `activeChoices` (authoritative for current turn).
-
     // update ready header text
     const readyCount = players.reduce((c,p)=> c + (Number(p.ready_for_next_turn||p.readyForNextTurn||0)===1 ? 1 : 0), 0);
     const totalPlayers = players.length;
-    if (_prevReadyFlag === 1) { /* no-op */ }
 
-    // Build rows for opponents only (exclude self)
-    players.forEach(p => {
-      if (String(p.id) === String(myParticipantId)) return; // skip me
-      const row = document.createElement('div'); row.className = 'player-row'; row.dataset.playerId = String(p.id);
-      const name = document.createElement('div'); name.className = 'player-name'; name.textContent = p.username || p.user_id || p.id;
+    // Build opponents ordered by preference
+    let opponents = (players || []).filter(p => String(p.id) !== String(myParticipantId)).slice();
+    if (orderBy === 'alpha') {
+      opponents.sort((a,b) => String(a.username||a.user_id||a.id).localeCompare(String(b.username||b.user_id||b.id)));
+    } else {
+      opponents.sort((a,b) => {
+        const sa = Number(a.total_score != null ? a.total_score : (a.totalScore != null ? a.totalScore : 0));
+        const sb = Number(b.total_score != null ? b.total_score : (b.totalScore != null ? b.totalScore : 0));
+        return sb - sa;
+      });
+    }
 
-      const peaceBtn = makeChoiceButton('Peace', 'peace-btn'); peaceBtn.classList.add('peace-btn');
-      const warBtn = makeChoiceButton('War', 'war-btn'); warBtn.classList.add('war-btn');
+    // Build TableRenderer schema and rows: columns -> Player | Peace | War
+    const schema = { columns: [ { key: 'player', title: 'Player' }, { key: 'peace', title: 'Peace' }, { key: 'war', title: 'War' } ] };
+    const rows = opponents.map(p => ({ playerId: p.id, player: p.username || p.user_id || p.id, peace: { type: 'button', value: { label: 'Peace' }, onClick: (e, ctx) => { selectChoice(ctx.row.playerId, 'peace'); } }, war: { type: 'button', value: { label: 'War' }, onClick: (e, ctx) => { selectChoice(ctx.row.playerId, 'war'); } } }));
 
-      row.appendChild(name); row.appendChild(peaceBtn); row.appendChild(warBtn);
+    try {
+      if (!window.TableRenderer) throw new Error('TableRenderer unavailable');
+      const existing = playerListEl.querySelector('table.tbl');
+      if (existing) window.TableRenderer.updateRows(playerListEl, rows);
+      else window.TableRenderer.createTable(playerListEl, schema, rows, { compact: true, tableClass: 'player-action-table' });
 
-      peaceBtn.addEventListener('click', () => selectChoice(p.id, 'peace'));
-      warBtn.addEventListener('click', () => selectChoice(p.id, 'war'));
+      // after render, assign data-player-id to each tr and wire up button states
+      const table = playerListEl.querySelector('table.tbl');
+      if (table) {
+        const trs = Array.from(table.querySelectorAll('tbody tr'));
+        trs.forEach((tr, idx) => {
+          const rowData = rows[idx];
+          if (rowData && rowData.playerId) tr.dataset.playerId = String(rowData.playerId);
+          // find peace/war buttons (assume 2nd and 3rd td)
+          const tds = tr.querySelectorAll('td');
+          const peaceBtn = tds[1] && tds[1].querySelector('button');
+          const warBtn = tds[2] && tds[2].querySelector('button');
+          // apply selected state
+          const sel = activeChoices[String(rowData.playerId)];
+          if (peaceBtn) {
+            peaceBtn.classList.toggle('selected-peace', sel === 'peace');
+            peaceBtn.disabled = !_canAct();
+          }
+          if (warBtn) {
+            warBtn.classList.toggle('selected-war', sel === 'war');
+            warBtn.disabled = !_canAct();
+          }
+        });
+      }
+    } catch (e) {
+      console.error('renderPlayers table error', e);
+      playerListEl.textContent = '(failed to render players)';
+    }
 
-      // apply existing selected state (only change classes if needed)
-      const sel = activeChoices[String(p.id)]; if (sel) applySelectedStyles(row, sel);
-
-      playerListEl.appendChild(row);
-    });
-
-    // If not participant, show notice and disable buttons
+    // Update header and enable/disable UI
     if (!myParticipantId) {
       actionHeader.textContent = '(You are not a participant)';
       disableTurnUI();
     } else {
       actionHeader.textContent = 'Choose Your Actions';
-      // enable/disable based on _prevReadyFlag
       if (_prevReadyFlag === 1) disableTurnUI(); else enableTurnUI();
     }
-
-    // No post-render fetch needed — rows were created using `activeChoices`.
   }
 
   async function selectChoice(targetId, choice) {
     if (!myParticipantId) return alert('Not a participant');
     // optimistic UI (apply immediately; will be reconciled with server authoritative data)
     activeChoices[String(targetId)] = choice;
-    const row = document.querySelector(`.player-row[data-player-id="${targetId}"]`);
-    if (row) applySelectedStyles(row, choice);
+    // update table-based row buttons
+    try {
+      const table = playerListEl.querySelector('table.tbl');
+      if (table) {
+        const tr = table.querySelector(`tbody tr[data-player-id="${targetId}"]`);
+        if (tr) {
+          const tds = tr.querySelectorAll('td');
+          const peaceBtn = tds[1] && tds[1].querySelector('button');
+          const warBtn = tds[2] && tds[2].querySelector('button');
+          if (peaceBtn) { peaceBtn.classList.toggle('selected-peace', choice === 'peace'); }
+          if (warBtn) { warBtn.classList.toggle('selected-war', choice === 'war'); }
+        }
+      }
+    } catch (e) { /* ignore */ }
     try {
       await window.api.post(`/participants/${encodeURIComponent(myParticipantId)}/choice`, { targetId, choice });
       // after successful save, reload formatting from server to ensure authoritative state
@@ -180,7 +275,8 @@
     if (!myParticipantId) return alert('Not a participant');
     // verify against authoritative server choices that player has made a choice for every opponent
     try {
-      const opponentIds = Array.from(document.querySelectorAll('.player-row')).map(r => r.dataset.playerId);
+      const table = playerListEl.querySelector('table.tbl');
+      const opponentIds = table ? Array.from(table.querySelectorAll('tbody tr')).map(r => r.dataset.playerId) : [];
       const serverChoices = await fetchActiveChoices(myParticipantId);
       const missing = opponentIds.find(id => !serverChoices[String(id)]);
       if (missing) return alert('You must choose Peace or War for every player.');
@@ -192,8 +288,19 @@
       await window.api.post(`/participants/${encodeURIComponent(myParticipantId)}/submit`, {});
       // clear local optimistic choices and reset button formatting
       activeChoices = {};
-      const rows = Array.from(document.querySelectorAll('.player-row'));
-      rows.forEach(r => applySelectedStyles(r, null));
+      // clear selected classes on table buttons
+      try {
+        const table = playerListEl.querySelector('table.tbl');
+        if (table) {
+          Array.from(table.querySelectorAll('tbody tr')).forEach(tr => {
+            const tds = tr.querySelectorAll('td');
+            const peaceBtn = tds[1] && tds[1].querySelector('button');
+            const warBtn = tds[2] && tds[2].querySelector('button');
+            if (peaceBtn) { peaceBtn.classList.remove('selected-peace'); }
+            if (warBtn) { warBtn.classList.remove('selected-war'); }
+          });
+        }
+      } catch (e) { /* ignore */ }
       // force re-apply formatting when needed
       _prevButtonFormattingKey = null;
       disableTurnUI();
@@ -203,21 +310,40 @@
 
   async function renderTurnHistory(gameIdParam, participantIdParam) {
     if (!gameIdParam) return;
-    if (!participantIdParam) { historyContainer.innerHTML = '(history available to participants only)'; return; }
+    // If participantId not provided (poller may fire before init completes), show a loading placeholder
+    // and try to resolve the current user's participant. Only display the "available to participants"
+    // message after resolution fails so we don't flash the message briefly while initializing.
+    if (!participantIdParam) {
+      historyContainer.innerHTML = '(loading history...)';
+      try {
+        const me = await window.api.get('/participants/me');
+        if (me && me.success && me.data && me.data.id) participantIdParam = me.data.id;
+      } catch (e) { /* ignore */ }
+    }
+    if (!participantIdParam) { return; }
     try {
-      const entries = await fetchMyHistory(participantIdParam);
+      const fh = await fetchOpponentHistory(participantIdParam);
+      if (!fh || fh.success === false) {
+        // API returned an error (ownership or server) — skip rendering
+        return;
+      }
+      const entries = fh.data || [];
       if (!entries || !entries.length) { historyContainer.innerHTML = '(no history yet)'; return; }
 
       // collect turns and opponent ids
         const turnSet = new Set();
         const oppSet = new Set();
         entries.forEach(e => {
-          if (e.turnNumber !== undefined && e.turnNumber !== null) turnSet.add(Number(e.turnNumber));
-          if (e.opponentId !== undefined && e.opponentId !== null) oppSet.add(String(e.opponentId));
+          const tn = e.turnNumber !== undefined && e.turnNumber !== null ? e.turnNumber : (e.turn_number !== undefined ? e.turn_number : null);
+          const oid = e.opponentId !== undefined && e.opponentId !== null ? e.opponentId : (e.targetId !== undefined && e.targetId !== null ? e.targetId : (e.target_id !== undefined ? e.target_id : null));
+          if (tn !== null) turnSet.add(Number(tn));
+          if (oid !== null) oppSet.add(String(oid));
         });
 
         const turns = Array.from(turnSet).sort((a,b)=>a-b);
         if (!turns.length) { historyContainer.innerHTML = '(no history yet)'; return; }
+        // Display most recent turn on the left: create a descending-ordered turns array
+        const turnsDesc = turns.slice().reverse();
 
         // fetch participant usernames for opponents
         const ids = Array.from(oppSet);
@@ -229,21 +355,40 @@
         // Build rows grouped by opponent
         const rowsByOpp = {};
         entries.forEach(e => {
-          const oid = String(e.opponentId);
+          const oid = String(e.opponentId !== undefined && e.opponentId !== null ? e.opponentId : (e.targetId !== undefined && e.targetId !== null ? e.targetId : (e.target_id !== undefined ? e.target_id : '')));
           if (!rowsByOpp[oid]) rowsByOpp[oid] = [];
           rowsByOpp[oid].push(e);
         });
 
-        let html = '<table>';
-        html += '<tr><th>Opponent</th>' + turns.map(t=>`<th>Turn ${t}</th>`).join('') + '</tr>';
-        // iterate opponents in alphabetical username order
-        const sortedOpp = ids.slice().sort((a,b)=> String(nameMap[a]).localeCompare(String(nameMap[b])));
-        sortedOpp.forEach(oid => {
-          html += `<tr><td>${nameMap[oid] || oid}</td>`;
-          turns.forEach(t => {
-            const entry = (rowsByOpp[oid] || []).find(r => Number(r.turnNumber) === Number(t));
-            const myChoice = entry ? (entry.appliedChoice || '') : '';
-            const oppChoice = entry ? (entry.opponentChoice || '') : '';
+        // Build TableRenderer schema/rows for turn history (most recent left)
+        // First column is opponent (flexible), subsequent turn columns use the turn number as the column title
+        const cols = [{ key: 'opponent', title: 'Opponent' }].concat(turnsDesc.map((t, i) => ({ key: `t${i}`, title: String(t) })));
+        let sortedOpp = ids.slice();
+        if (orderBy === 'score') {
+          // fetch participant scores for this game and sort by score desc
+          try {
+            const pr = await window.api.get(`/games/${encodeURIComponent(gameId)}/participants`);
+            const parts = (pr && pr.success && Array.isArray(pr.data)) ? pr.data : [];
+            const scoreMap = {};
+            parts.forEach(p => { scoreMap[String(p.id)] = Number(p.total_score != null ? p.total_score : (p.totalScore != null ? p.totalScore : 0)); });
+            sortedOpp.sort((a,b) => (scoreMap[String(b)] || 0) - (scoreMap[String(a)] || 0));
+          } catch (e) {
+            // fallback to alphabetical if participants fetch fails
+            sortedOpp.sort((a,b)=> String(nameMap[a]).localeCompare(String(nameMap[b])));
+          }
+        } else {
+          sortedOpp.sort((a,b)=> String(nameMap[a]).localeCompare(String(nameMap[b])));
+        }
+        const rowsData = sortedOpp.map(oid => {
+          const base = { opponent: nameMap[oid] || oid };
+          // iterate turnsDesc so the left-most column is the most recent turn
+          turnsDesc.forEach((t, i) => {
+            const entry = (rowsByOpp[oid] || []).find(r => {
+              const rn = r.turnNumber !== undefined && r.turnNumber !== null ? r.turnNumber : (r.turn_number !== undefined ? r.turn_number : null);
+              return rn !== null && Number(rn) === Number(t);
+            });
+            const myChoice = entry ? (entry.appliedChoice || entry.choice || entry.applied_choice || '') : '';
+            const oppChoice = entry ? (entry.opponentChoice || entry.opponent_choice || '') : '';
             const points = entry && (entry.pointsAwarded !== undefined && entry.pointsAwarded !== null) ? ` (${entry.pointsAwarded})` : '';
             const cellText = `${myChoice || ''}/${oppChoice || ''}${points}`;
             let cls = '';
@@ -253,12 +398,31 @@
               else if (myChoice === 'war' && oppChoice === 'peace') cls = 'cell-war-peace';
               else if (myChoice === 'peace' && oppChoice === 'war') cls = 'cell-peace-war';
             }
-            html += `<td class="${cls}">${cellText}</td>`;
+            base[`t${i}`] = { type: 'text', value: cellText, className: cls };
           });
-          html += '</tr>';
+          return base;
         });
-      html += '</table>';
-      if (html === _prevHistoryHtml) return; _prevHistoryHtml = html; historyContainer.innerHTML = html;
+
+        try {
+            const snap = JSON.stringify({ turns: turnsDesc, rowsData });
+            if (snap === _prevHistoryHtml) return; _prevHistoryHtml = snap;
+            if (!window.TableRenderer) throw new Error('TableRenderer not available');
+            const schema = { columns: cols };
+            const existingTable = historyContainer.querySelector('table.tbl');
+            // If an existing table has a different number of columns, recreate it so colgroup/widths match
+            let recreate = false;
+            if (existingTable) {
+              const ths = existingTable.querySelectorAll('thead th');
+              if (ths.length !== cols.length) recreate = true;
+            }
+            if (existingTable && !recreate) {
+              window.TableRenderer.updateRows(historyContainer, rowsData);
+            } else {
+              // create fresh table when none exists or column count changed
+              historyContainer.innerHTML = '';
+              window.TableRenderer.createTable(historyContainer, schema, rowsData, { compact: true, tableClass: 'history-table', autoSizeColumns: true, maxHeight: '360px' });
+            }
+        } catch (e) { console.error('turn history render error', e); historyContainer.innerHTML = '(failed to load history)'; }
     } catch (e) { console.error('renderTurnHistory: fetch error', e); historyContainer.innerHTML = '(failed to load history)'; }
   }
 
@@ -269,13 +433,26 @@
       const serverChoices = await fetchActiveChoices(participantId);
       // authoritative server choices replace previous server values
       activeChoices = Object.assign({}, serverChoices || {});
-      // apply to DOM rows
-      const rows = Array.from(playerListEl.querySelectorAll('.player-row'));
-      rows.forEach(r => {
-        const pid = r.dataset.playerId;
-        const choice = activeChoices[String(pid)] || null;
-        applySelectedStyles(r, choice);
-      });
+      // apply to table-based rows if present
+      const table = playerListEl.querySelector('table.tbl');
+      if (table) {
+        const trs = Array.from(table.querySelectorAll('tbody tr'));
+        trs.forEach(tr => {
+          const pid = tr.dataset.playerId;
+          const choice = activeChoices[String(pid)] || null;
+          const tds = tr.querySelectorAll('td');
+          const peaceBtn = tds[1] && tds[1].querySelector('button');
+          const warBtn = tds[2] && tds[2].querySelector('button');
+          if (peaceBtn) {
+            peaceBtn.classList.toggle('selected-peace', choice === 'peace');
+            peaceBtn.disabled = !_canAct();
+          }
+          if (warBtn) {
+            warBtn.classList.toggle('selected-war', choice === 'war');
+            warBtn.disabled = !_canAct();
+          }
+        });
+      }
     } catch (e) { console.error('reloadButtonFormatting error', e); }
   }
 
@@ -290,6 +467,8 @@
     if (err) { console.error('info poller error', err); return; }
     if (!result) return;
     const game = result.game; const players = result.players || [];
+    latestPlayers = players || [];
+    try { document.getElementById('gameId').textContent = game && game.name ? game.name : gameId; } catch (e) {}
     const stageNum = game && (game.stage !== undefined ? Number(game.stage) : (game.stageNum !== undefined ? Number(game.stageNum) : null));
     if (stageNum === null || stageNum !== 2) { window.location.href = `/gameInfo?gameId=${encodeURIComponent(gameId)}`; return; }
 
@@ -309,6 +488,7 @@
     if (_prevTurn !== null && currentTurn !== null && _prevTurn !== currentTurn) {
       activeChoices = {};
       _prevButtonFormattingKey = null; // force re-apply formatting on new turn
+      try { await renderTurnHistory(gameId, myParticipantId); } catch (e) { /* ignore */ }
     }
 
     // Fetch authoritative server choices once per poll (server is authoritative)
@@ -411,7 +591,7 @@
       }
 
       // render leaderboard and players
-      renderLeaderboard(info.players || []);
+      await renderLeaderboard(info.players || []);
       await renderPlayers(info.players || []);
 
       // set initial change-tracking keys so the poller won't immediately re-render

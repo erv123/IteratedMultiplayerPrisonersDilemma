@@ -3,7 +3,9 @@
 <head>
   <meta charset="utf-8" />
   <title>Create Game</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
   <link rel="stylesheet" href="/styles.css">
+  <link rel="stylesheet" href="/table-styles.css">
 </head>
 <body>
   <div class="page">
@@ -14,6 +16,7 @@
         <div style="display:flex;gap:8px;align-items:center">
           <div id="hostInfo" class="muted">Checking session...</div>
           <button onclick="window.location.href='/rules.html'" class="secondary">Rules</button>
+          <button onclick="window.location.href='/'" class="secondary">Lobby</button>
         </div>
       </div>
 
@@ -24,23 +27,7 @@
 
       <h3>Payoff Matrix</h3>
       <div class="card">
-        <table style="width:100%;border-collapse:collapse">
-          <tr>
-            <td></td>
-            <td class="muted">Peace</td>
-            <td class="muted">War</td>
-          </tr>
-          <tr>
-            <td class="muted">Peace</td>
-            <td><input id="pp" type="number" value="2"/></td>
-            <td><input id="pw" type="number" value="0"/></td>
-          </tr>
-          <tr>
-            <td class="muted">War</td>
-            <td><input id="wp" type="number" value="3"/></td>
-            <td><input id="ww" type="number" value="1"/></td>
-          </tr>
-        </table>
+        <div id="payoffMatrixTable"></div>
       </div>
 
       <h3>Game Settings</h3>
@@ -71,8 +58,9 @@
       </div>
     </div>
 
-    <script src="/api.js"></script>
-    <script src="/createGame.js"></script>
+    <script src="/js/api.js"></script>
+    <script src="/js/tableRenderer.js"></script>
+    <script src="/js/createGame.js"></script>
   </div>
 </body>
 </html>

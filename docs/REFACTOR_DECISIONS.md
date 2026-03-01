@@ -55,6 +55,8 @@ Security & sessions
 
 Date recorded: 2026-02-24
 
+
+
 Frontend conventions
 - All frontend API calls should go through a centralized `public/api.js` wrapper that performs `fetch`, attaches credentials, and normalizes the response envelope to `{ success, data?, error? }`. This keeps client code resilient to small server changes.
 - Use `window.api` as the public surface for legacy pages that are not bundled. Provide `get`, `post`, `put`, `del`, and `fetchJSON` methods.
@@ -63,3 +65,36 @@ Frontend conventions
 - Pages must include `public/common/ui.js` for consistent toasts, error handling, and loading indicators.
 
 Date recorded: 2026-02-24
+ 
+
+
+**Table Renderer**
+
+- **Goal:** provide a small renderer that centralizes HTML table generation so tables are consistent across the app.
+
+- **Decision (2026-03-01, refined):** implement a lightweight custom renderer under `public/js/tableRenderer.js`. API must remain minimal (principally `createTable`, `updateRows`, and `registerCellType` for extension). Callers should rely on class-based styling rather than renderer-specific layout behavior.
+
+- **Styling policy:**
+  - Per-cell class assignment is the default and preferred styling mechanism: the renderer applies the `className`/`classes` value from each `cellSpec` to the generated cell element.
+  - All table-specific CSS must live in a single dedicated stylesheet: `public/table-styles.css`. That file will contain classes such as `.tbl`, `.tbl-header`, `.tbl-row`, `.tbl-cell`, `.tbl-compact`, utility classes like `.muted` and `.accent`, and the color swatch class `.tbl-dot` used by the built-in `dot` cell type.
+  - The renderer should not embed presentation styles inline; it may add CSS classes or attributes that the stylesheet targets.
+
+- **Built-in cell types (concise):**
+  - `text`, `number`, `readonlyInput`, `input`, `button`, `checkbox`, `select`, `dot`, `custom`.
+  - `dot` is a built-in type that renders a small color swatch (use `.tbl-dot`) and an adjacent label; it is the standard way to show player colors in leaderboards.
+
+- **Events & small behavior notes:**
+  - Text and number cells can expose `onClick` handlers; input cells expose `onChange`. The renderer must attach handlers in a way that `updateRows` can safely remove and rebind them.
+  - Formatting such as `precision`, `suffix`, and `align` may be provided in `cellSpec.format` and implemented by the renderer, but visual presentation always relies on CSS classes from `public/table-styles.css`.
+
+- **Migration plan (summary):**
+  1. Implement `public/js/tableRenderer.js` (minimal API + basic cell types including `dot`).
+  2. Move table CSS into `public/table-styles.css` and remove table-specific rules from `public/styles.css`.
+  3. Migrate payoff rendering in `public/gameInfo.js` and the create-game payoff UI to use the renderer, keeping existing input `name` attributes for compatibility.
+
+- **Acceptance criteria:**
+  - All table styling is driven by classes defined in `public/table-styles.css`.
+  - Per-cell `className` is the primary styling mechanism; the `dot` cell type renders player color consistently in the Game Info leaderboard.
+  - Click handlers for text/number fields and change handlers for inputs are supported and removable by `updateRows`.
+
+- Date recorded: 2026-03-01

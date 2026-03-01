@@ -37,6 +37,19 @@ const _prevGameRenderMap = new Map();
 // track previous login state to detect transitions
 let _prevSessionLoggedIn = null;
 
+// register a 'link' cell type for TableRenderer (renders name links)
+if (window.TableRenderer && typeof window.TableRenderer.registerCellType === 'function') {
+  window.TableRenderer.registerCellType('link', function(cellSpec){
+    const a = document.createElement('a');
+    const v = cellSpec && cellSpec.value ? cellSpec.value : cellSpec;
+    a.href = v && v.href ? v.href : '#';
+    a.textContent = v && v.text ? String(v.text) : (typeof v === 'string' ? v : '');
+    a.style.textDecoration = 'none';
+    a.style.color = 'blue';
+    return a;
+  });
+}
+
 async function initLobby() {
   document.getElementById('loginBtn').addEventListener('click', login);
   document.getElementById('registerBtn').addEventListener('click', register);
@@ -102,6 +115,8 @@ async function refreshSession() {
 function updateAuthUI() {
   const loginForm = document.getElementById('loginForm');
   const loggedInActions = document.getElementById('loggedInActions');
+  const welcomeEl = document.getElementById('welcomeMsg');
+  const hdrEl = document.getElementById('authHeader');
   const loggedInNow = !!(session && session.loggedIn);
 
   // If login state changed (login -> logout or logout -> login), clear render cache and force full redraw
@@ -115,19 +130,27 @@ function updateAuthUI() {
   }
 
   if (loggedInNow) {
-    loginForm.style.display = 'none';
-    loggedInActions.style.display = 'block';
+    if (loginForm) loginForm.style.display = 'none';
+    if (loggedInActions) loggedInActions.style.display = 'block';
     // show only the username; the surrounding markup includes a 'Welcome,' label
-    document.getElementById('welcomeMsg').textContent = session.user.username;
+    if (welcomeEl) welcomeEl.textContent = session.user.username;
+    if (hdrEl) hdrEl.textContent = `Welcome, ${session.user.username}`;
   } else {
-    loginForm.style.display = '';
-    loggedInActions.style.display = 'none';
-    document.getElementById('welcomeMsg').textContent = '';
+    if (loginForm) loginForm.style.display = '';
+    if (loggedInActions) loggedInActions.style.display = 'none';
+    if (welcomeEl) welcomeEl.textContent = '';
+    if (hdrEl) hdrEl.textContent = 'Sign In';
   }
 
   // show/hide create game button based on auth
   const createBtn = document.getElementById('createGameBtn');
   if (createBtn) createBtn.style.display = loggedInNow ? '' : 'none';
+
+  // hide login/register buttons when logged in
+  const loginBtn = document.getElementById('loginBtn');
+  const registerBtn = document.getElementById('registerBtn');
+  if (loginBtn) loginBtn.style.display = loggedInNow ? 'none' : '';
+  if (registerBtn) registerBtn.style.display = loggedInNow ? 'none' : '';
 
   _prevSessionLoggedIn = loggedInNow;
 }
@@ -227,9 +250,47 @@ async function renderGameListFromRows(rows) {
     return sect.querySelector('[data-body]');
   }
 
+  // Ensure a TableRenderer table exists for a subsection and return its container element
+  function ensureTable(subBody, subKey, columns) {
+    let tableWrap = subBody.querySelector(`[data-table="${subKey}"]`);
+    if (!tableWrap) {
+      tableWrap = document.createElement('div');
+      tableWrap.setAttribute('data-table', subKey);
+      subBody.appendChild(tableWrap);
+      const schema = { columns: columns };
+      if (window.TableRenderer) window.TableRenderer.createTable(tableWrap, schema, []);
+    }
+    return tableWrap;
+  }
+
   // utility to create a stable DOM id for data attributes
   function domIdFor(gameId) {
     return String(gameId);
+  }
+
+  // robust host name resolver: looks in players array for host flags and falls back to game meta
+  function getHostName(item) {
+    try {
+      const players = item.info && item.info.players ? item.info.players : [];
+      for (const p of players) {
+        if (p && (p.is_host || p.isHost || p.role === 'host' || p.host === true)) {
+          if (p.username) return p.username;
+          if (p.userName) return p.userName;
+          if (p.name) return p.name;
+          if (p.id) return String(p.id);
+        }
+      }
+      // fallback: sometimes first player is host
+      if (players.length > 0) {
+        const p = players[0];
+        if (p) return p.username || p.userName || p.name || String(p.id || '');
+      }
+      // fallback to game meta fields
+      const g = item.info && item.info.game ? item.info.game : {};
+      return g.hostUsername || g.host_name || g.host || g.owner || '';
+    } catch (e) {
+      return '';
+    }
   }
 
   // Build buckets similar to previous behavior
@@ -248,46 +309,35 @@ async function renderGameListFromRows(rows) {
       const subKey = `all-${k}`;
       let subBody = body.querySelector(`[data-subsection="${subKey}"]`);
       if (!subBody) {
-        const sh = document.createElement('h5'); sh.textContent = stageLabel(k);
-        body.appendChild(sh);
         subBody = document.createElement('div'); subBody.setAttribute('data-subsection', subKey);
         body.appendChild(subBody);
       }
 
-      list.forEach(item => {
+      // build rows and render via TableRenderer
+      const columns = [
+        { key: 'name', title: `${stageLabel(k)} games` },
+        { key: 'host', title: 'Host' },
+        { key: 'players', title: 'Players' },
+      ];
+      const tableWrap = ensureTable(subBody, subKey, columns);
+      const rowsForTable = list.map(item => {
         const id = domIdFor(item.id);
         currentIds.add(id);
-        const host = (item.info.players || []).find(p => p.is_host || p.isHost);
+        const host = getHostName(item);
         const currentCount = (item.info && item.info.players) ? (item.info.players.length) : (item.info.game && (item.info.game.currentPlayers || item.info.game.current_players) || 0);
         const maxCount = (item.info && item.info.game) ? (item.info.game.maxPlayers || item.info.game.max_players || 0) : 0;
-        const textKey = JSON.stringify({ stage: Number(k), current: currentCount, max: maxCount, host: host && host.username });
-        const prev = _prevGameRenderMap.get(id);
-        let row = subBody.querySelector(`[data-game-id="${id}"]`);
-        if (prev === textKey && row) { console.log('renderGameListFromRows: skip unchanged', id); return; }
-
-        if (!row) {
-          row = document.createElement('div');
-          row.setAttribute('data-game-id', id);
-          const link = makeGameLink(item.id, (item.info && item.info.game && item.info.game.name));
-          link.setAttribute('data-link', '');
-          row.appendChild(link);
-          const txt = document.createElement('span'); txt.setAttribute('data-meta', ''); row.appendChild(txt);
-          subBody.appendChild(row);
-          console.log('renderGameListFromRows: created row', id, { name: (item.info && item.info.game && item.info.game.name) });
-        }
-
-        const link = row.querySelector('[data-link]');
-        const txt = row.querySelector('[data-meta]');
-        link.textContent = (item.info && item.info.game && item.info.game.name) ? String(item.info.game.name) : String(item.id);
-        txt.textContent = ` — ${currentCount}/${maxCount}`;
-        console.log('renderGameListFromRows: updated row', id, { linkText: link.textContent, metaText: txt.textContent });
-
-        _prevGameRenderMap.set(id, textKey);
+        const nameVal = { text: (item.info && item.info.game && item.info.game.name) ? String(item.info.game.name) : String(item.id), href: `/gameInfo?gameId=${encodeURIComponent(item.id)}` };
+        return {
+          name: { type: 'link', value: nameVal },
+          host: host || '',
+          players: `${currentCount}/${maxCount}`,
+          stage: stageLabel(item.info.game && item.info.game.stage),
+          _id: id,
+        };
       });
-
-      // remove stale children in this subsection
-      const children = Array.from(subBody.querySelectorAll('[data-game-id]'));
-      children.forEach(c => { const gid = c.getAttribute('data-game-id'); if (!currentIds.has(gid)) { c.remove(); _prevGameRenderMap.delete(gid); console.log('renderGameListFromRows: removed stale', gid); } });
+      if (window.TableRenderer) window.TableRenderer.updateRows(tableWrap, rowsForTable);
+      // hide empty tables
+      if (rowsForTable.length === 0) tableWrap.style.display = 'none'; else tableWrap.style.display = '';
     });
 
     return;
@@ -315,47 +365,34 @@ async function renderGameListFromRows(rows) {
       const subKey = `${containerKey}-${k}`;
       let subBody = body.querySelector(`[data-subsection="${subKey}"]`);
       if (!subBody) {
-        const sh = document.createElement('h5'); sh.textContent = stageLabel(k);
-        body.appendChild(sh);
         subBody = document.createElement('div'); subBody.setAttribute('data-subsection', subKey);
         body.appendChild(subBody);
       }
 
-        list.forEach(item => {
-        const id = domIdFor(item.id);
-        currentIds.add(id);
-        const host = (item.info.players || []).find(p => p.is_host || p.isHost);
-        const currentCount = (item.info && item.info.players) ? (item.info.players.length) : (item.info.game && (item.info.game.currentPlayers || item.info.game.current_players) || 0);
-        const maxCount = (item.info && item.info.game) ? (item.info.game.maxPlayers || item.info.game.max_players || 0) : 0;
-        const textKey = JSON.stringify({ stage: k, current: currentCount, max: maxCount, host: host && host.username });
-        const prev = _prevGameRenderMap.get(id);
-        let row = subBody.querySelector(`[data-game-id="${id}"]`);
-        if (prev === textKey && row) { console.log('renderGameListFromRows: skip unchanged', id); return; }
-
-        if (!row) {
-          row = document.createElement('div');
-          row.setAttribute('data-game-id', id);
-          const link = makeGameLink(item.id, (item.info && item.info.game && item.info.game.name));
-          link.setAttribute('data-link', '');
-          row.appendChild(link);
-          const txt = document.createElement('span'); txt.setAttribute('data-meta', ''); row.appendChild(txt);
-          subBody.appendChild(row);
-          console.log('renderGameListFromRows: created row', id, { name: (item.info && item.info.game && item.info.game.name) });
-        }
-
-        const link = row.querySelector('[data-link]');
-        const txt = row.querySelector('[data-meta]');
-        link.textContent = (item.info && item.info.game && item.info.game.name) ? String(item.info.game.name) : String(item.id);
-        if (host) txt.textContent = ` — host: ${host.username} — ${currentCount}/${maxCount}`;
-        else txt.textContent = ` — ${currentCount}/${maxCount}`;
-
-        _prevGameRenderMap.set(id, textKey);
-        console.log('renderGameListFromRows: updated row', id, { linkText: link.textContent || null, metaText: txt.textContent || null });
-      });
-
-      // cleanup stale
-      const children = Array.from(subBody.querySelectorAll('[data-game-id]'));
-      children.forEach(c => { const gid = c.getAttribute('data-game-id'); if (!currentIds.has(gid)) { c.remove(); _prevGameRenderMap.delete(gid); } });
+        // build table rows and render via TableRenderer
+        const columns = [
+          { key: 'name', title: `${stageLabel(k)} games` },
+          { key: 'host', title: 'Host' },
+          { key: 'players', title: 'Players' },
+        ];
+        const tableWrap = ensureTable(subBody, subKey, columns);
+        const rowsForTable = list.map(item => {
+          const id = domIdFor(item.id);
+          currentIds.add(id);
+          const host = getHostName(item);
+          const currentCount = (item.info && item.info.players) ? (item.info.players.length) : (item.info.game && (item.info.game.currentPlayers || item.info.game.current_players) || 0);
+          const maxCount = (item.info && item.info.game) ? (item.info.game.maxPlayers || item.info.game.max_players || 0) : 0;
+          const nameVal = { text: (item.info && item.info.game && item.info.game.name) ? String(item.info.game.name) : String(item.id), href: `/gameInfo?gameId=${encodeURIComponent(item.id)}` };
+          return {
+            name: { type: 'link', value: nameVal },
+            host: host || '',
+            players: `${currentCount}/${maxCount}`,
+            stage: stageLabel(item.info.game && item.info.game.stage),
+            _id: id,
+          };
+        });
+        if (window.TableRenderer) window.TableRenderer.updateRows(tableWrap, rowsForTable);
+        if (rowsForTable.length === 0) tableWrap.style.display = 'none'; else tableWrap.style.display = '';
     });
   };
 

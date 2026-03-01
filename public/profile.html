@@ -1,0 +1,61 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Profile</title>
+  <link rel="stylesheet" href="/styles.css">
+  <link rel="stylesheet" href="/table-styles.css">
+</head>
+<body>
+  <main class="container">
+    <h1>Profile</h1>
+
+    <section id="notAuth" class="card">
+      <h2>Sign in</h2>
+      <form id="loginForm">
+        <label>Username<br><input name="username" required></label><br>
+        <label>Password<br><input name="password" type="password" required></label><br>
+        <button type="submit">Login</button>
+      </form>
+
+      <hr>
+
+      <h2>Register</h2>
+      <form id="registerForm">
+        <label>Username<br><input name="username" required></label><br>
+        <label>Password<br><input name="password" type="password" required></label><br>
+        <button type="submit">Register</button>
+      </form>
+      <button onclick="window.location.href='/'" class="secondary">Lobby</button>
+
+      <div id="notAuthMsg" class="muted"></div>
+    </section>
+
+    <section id="auth" class="card" style="display:none">
+      <h2>Account</h2>
+      <div><strong>Username:</strong> <span id="curUsername"></span></div>
+      <form id="changePasswordForm">
+        <label>New password<br><input name="newPassword" type="password" required></label><br>
+        <label>Confirm password<br><input name="confirmPassword" type="password" required></label><br>
+        <button type="submit">Change Password</button>
+      </form>
+      <button id="logoutBtn">Logout</button>
+      <button onclick="window.location.href='/'" class="secondary">Lobby</button>
+      <div id="authMsg" class="muted"></div>
+    </section>
+
+    <section id="admin" class="card" style="display:none">
+      <h2>Admin Controls</h2>
+      <label>Target username<br><input id="adminTarget" placeholder="username"></label>
+      <button id="enableResetBtn">Enable Reset for User</button>
+      <div id="adminMsg" class="muted"></div>
+    </section>
+
+  </main>
+
+  <script src="/js/api.js"></script>
+  <script src="/js/polling.js"></script>
+  <script src="/js/profile.js"></script>
+</body>
+</html>

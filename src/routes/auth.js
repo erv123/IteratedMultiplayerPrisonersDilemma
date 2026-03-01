@@ -44,8 +44,16 @@ router.post('/resetPassword', resetPasswordValidator, handleValidation, async (r
     const { username, newPassword } = req.body;
     const user = await authService.findUserByUsername(username);
     if (!user) return res.status(400).json({ success: false, error: { code: 'USER_NOT_FOUND', message: 'username not found' } });
-    const ok = await authService.canResetPassword(username);
-    if (!ok) return res.status(403).json({ success: false, error: { code: 'FORBIDDEN', message: 'Reset not allowed' } });
+    // Allow authenticated users to change their own password (or admins) without the time/bypass check.
+    let skipCheck = false;
+    if (req.session && req.session.user) {
+      if (req.session.user.isAdmin) skipCheck = true;
+      if (req.session.user.username === username) skipCheck = true;
+    }
+    if (!skipCheck) {
+      const ok = await authService.canResetPassword(username);
+      if (!ok) return res.status(403).json({ success: false, error: { code: 'FORBIDDEN', message: 'Reset not allowed' } });
+    }
     await authService.setPassword(user.id, newPassword);
     return res.json({ success: true });
   } catch (err) {

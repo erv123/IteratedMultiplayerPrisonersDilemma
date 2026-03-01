@@ -1,0 +1,83 @@
+<div id="about-fragment">
+  <h2>About this adaptation</h2>
+  <p>
+    This game adapts the classic Prisoner’s Dilemma to a local, iterated multiplayer setting.
+    Players repeatedly choose between <strong>Cooperate (Peace)</strong> or <strong>Defect (War)</strong>
+    against every other participant each turn. Payoffs are awarded after each resolved turn based on
+    the pairwise choices.
+  </p>
+  <p>
+    The core idea is that mutual cooperation yields moderate rewards for both players, while mutual
+    defection gives a smaller reward. If one defects while the other cooperates, the defector receives
+    a larger payoff and the cooperator receives the lowest payoff. Over multiple rounds, players can
+    adapt their choices in response to others' behaviour.
+  </p>
+  <h3>Scientific history</h3>
+  <p>
+    The Prisoner’s Dilemma originated in the 1950s from work at RAND by Merrill Flood and Melvin Dresher;
+    Albert Tucker later formalised it and coined the name. The iterated form became central to
+    research on cooperation after Robert Axelrod's influential tournaments in the late 1970s and
+    early 1980s, where the simple <em>Tit-for-Tat</em> strategy performed remarkably well. These results
+    helped launch a large literature in evolutionary game theory and social science exploring how
+    reciprocal strategies, population structure, and repeated interaction foster cooperation.
+  </p>
+  <p>
+    Since then, the model has been extended across disciplines — from theoretical biology (e.g. John
+    Maynard Smith and evolutionary stability) to economics and network science (work by Martin Nowak
+    and others). Multiplayer and public-goods variants broaden the questions to collective action and
+    real-world social dilemmas.
+  </p>
+  <p class="muted">
+    For more background on the original Prisoner’s Dilemma and typical payoff structures, see
+    <a href="https://en.wikipedia.org/wiki/Prisoner%27s_dilemma" target="_blank" rel="noopener">the Wikipedia article</a>.
+  </p>
+</div>
+
+<div id="rules-fragment">
+  <h2>Rules</h2>
+  <p class="muted">Each turn you choose whether to cooperate (Peace) or defect (War) against every other participant. Scores are awarded based on the payoff matrix configured for the game.</p>
+     <h3>Payoff matrix</h3>
+  <p class="muted">The payoff matrix below shows the points awarded to the player based on what they and their opponent chooses. It is applied on turn resolution and can be configured per game.</p>
+
+  <table class="payoff-table tbl">
+    <thead>
+      <tr>
+        <th></th>
+        <th>Opponent: Peace</th>
+        <th>Opponent: War</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <th>Player: Peace</th>
+        <td class="payoff-first-col">R: 2</td>
+        <td>S: 0</td>
+      </tr>
+      <tr>
+        <th>Player: War</th>
+        <td>T: 3</td>
+        <td>P: 1</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <p>The values above follow a common Prisoner’s Dilemma ordering:</p>
+  <ul>
+    <li><strong>T (Temptation)</strong> = 3 — payoff to a defector when the opponent cooperates.</li>
+    <li><strong>R (Reward)</strong> = 2 — payoff to both when both cooperate.</li>
+    <li><strong>P (Punishment)</strong> = 1 — payoff to both when both defect.</li>
+    <li><strong>S (Sucker)</strong> = 0 — payoff to a cooperator when the opponent defects.</li>
+  </ul>
+  <h3>Turns</h3>
+  <ul>
+    <li>Games proceed in turns. On each turn every player selects a choice for every other player.</li>
+    <li>When all players are ready the server resolves the turn and updates scores.</li>
+    <li>During turn resolution there is a chance for the selected choice to be flipped. The chance is configured per game.</li>
+  </ul>
+
+  <h3>Ending</h3>
+  <p class="muted">Games may end randomly every time a turn is resolved based on the game's <strong>end chance</strong> value. Completed games can be exported.</p>
+
+  <h3>Etiquette</h3>
+  <p class="muted">The only rule is that you should not show your game screen to other players. This is to not expose what was your choice prior to the error being applied. Otherwise you may lie, gaslight or apply any other psychological warfare tactics to get the best possible score. What happens in the game, stays in the game.</p>
+</div>

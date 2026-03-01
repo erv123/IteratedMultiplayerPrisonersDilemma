@@ -35,19 +35,30 @@ router.get('/:participantId/myHistory', async (req, res) => {
     const gameRow = await require('../services/dbWrapper').getAsync('SELECT history_limit FROM games WHERE id = ?', [p.game_id]);
     const limit = gameRow ? gameRow.history_limit : 5;
     const participantHistory = await require('../services/turnService').getPlayerHistory(p.game_id, participantId, limit);
-    // For each entry, fetch the opponent's applied choice against this participant for the same turn
-    const db = require('../services/dbWrapper');
+    // For each entry, gather the opponent's applied choice by using the opponent's history
+    // This loads each opponent's recent history once and looks up the matching turn.
     const results = [];
+    const opponentIds = Array.from(new Set((participantHistory || []).map(e => String(e.targetId))));
+    const opponentHistMap = {};
+    for (const oid of opponentIds) {
+      // use turnService to fetch opponent history (same limit)
+      const oppHist = await turnService.getPlayerHistory(p.game_id, oid, limit).catch(() => []);
+      // map by turnNumber for quick lookup
+      const byTurn = {};
+      (oppHist || []).forEach(r => { byTurn[String(r.turnNumber)] = r; });
+      opponentHistMap[String(oid)] = byTurn;
+    }
     for (const entry of (participantHistory || [])) {
       const opponentId = entry.targetId;
       const turnNumber = entry.turnNumber;
-      const oppRow = await db.getAsync('SELECT applied_choice, points_awarded FROM turns WHERE game_id = ? AND player_id = ? AND target_id = ? AND turn_number = ?', [p.game_id, opponentId, participantId, turnNumber]);
+      const oppByTurn = opponentHistMap[String(opponentId)] || {};
+      const oppRow = oppByTurn[String(turnNumber)] || null;
       results.push({
         participantId: participantId,
         opponentId: opponentId,
         turnNumber: turnNumber,
         appliedChoice: entry.choice,
-        opponentChoice: oppRow ? oppRow.applied_choice : null,
+        opponentChoice: oppRow ? oppRow.choice : null,
         pointsAwarded: entry.pointsAwarded,
       });
     }
@@ -106,20 +117,27 @@ router.get('/:participantId/opponentHistory', async (req, res) => {
     const limit = gameRow ? gameRow.history_limit : 5;
     // fetch limited history entries for this participant (where resolved/applied)
     const participantHistory = await require('../services/turnService').getPlayerHistory(p.game_id, participantId, limit);
-    // For each participant history entry, fetch the opponent's applied choice against this participant for the same turn
-    const db = require('../services/dbWrapper');
+    // For each participant history entry, gather the opponent's applied choice by using the opponent's history
     const results = [];
+    const opponentIds2 = Array.from(new Set((participantHistory || []).map(e => String(e.targetId))));
+    const opponentHistMap2 = {};
+    for (const oid of opponentIds2) {
+      const oppHist = await turnService.getPlayerHistory(p.game_id, oid, limit).catch(() => []);
+      const byTurn = {};
+      (oppHist || []).forEach(r => { byTurn[String(r.turnNumber)] = r; });
+      opponentHistMap2[String(oid)] = byTurn;
+    }
     for (const entry of (participantHistory || [])) {
       const opponentId = entry.targetId;
       const turnNumber = entry.turnNumber;
-      // fetch opponent's turn row where they targeted this participant on the same turn
-      const oppRow = await db.getAsync('SELECT applied_choice, points_awarded FROM turns WHERE game_id = ? AND player_id = ? AND target_id = ? AND turn_number = ?', [p.game_id, opponentId, participantId, turnNumber]);
+      const oppByTurn = opponentHistMap2[String(opponentId)] || {};
+      const oppRow = oppByTurn[String(turnNumber)] || null;
       results.push({
         participantId: participantId,
         opponentId: opponentId,
         turnNumber: turnNumber,
         appliedChoice: entry.choice,
-        opponentChoice: oppRow ? oppRow.applied_choice : null,
+        opponentChoice: oppRow ? oppRow.choice : null,
         pointsAwarded: entry.pointsAwarded,
       });
     }

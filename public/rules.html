@@ -19,36 +19,27 @@
     </header>
 
     <main style="margin-top:14px">
-      <div class="card">
-        <h2>Basics</h2>
-        <p class="muted">Each turn you choose whether to cooperate (Peace) or defect (War) against a chosen opponent. Scores are awarded based on the payoff matrix configured for the game.</p>
-
-        <h3>Turns</h3>
-        <ul>
-          <li>Games are proceed in turns. On each turn every player selects a choice for each other player.</li>
-          <li>When all players are ready the server resolves the turn and updates scores.</li>
-          <li>During turn resolution there is a chance for the selected choice to be flipped. The chance is configured per game.</li>
-        </ul>
-
-        <h3>Ending</h3>
-        <p class="muted">Games may end randomly every time a turn is resolved based on the game's <strong>end chance</strong> value. Completed games can be exported.</p>
-
-
-        <h3>Etiquette</h3>
-        <p class="muted">The only rule is that you should not show your game screen to other players. This is to not expose what was your choice prior to the error being applied. Otherwise you may lie, gaslight or apply any other psychological warfare tactics to get the best possible score. What happens in the game, stays in the game.</p>
-
-        <div style="margin-top:18px;display:flex;gap:8px">
-          <button id="backRulesBtn2" class="secondary">Back</button>
-        </div>
+      <div class="card" id="rulesContainer" aria-labelledby="rulesHeading">
+        <!-- Rules content loaded dynamically from /content/gameinfo.html (rules-fragment) -->
       </div>
     </main>
 
   </div>
 
+  <script src="/js/contentLoader.js"></script>
   <script>
     function goBack(){ if (window.history && window.history.length>1) return window.history.back(); window.location.href='/'; }
-    document.getElementById('backRulesBtn').addEventListener('click', goBack);
-    document.getElementById('backRulesBtn2').addEventListener('click', goBack);
+    const backA = document.getElementById('backRulesBtn');
+    if (backA) backA.addEventListener('click', goBack);
+    const backB = document.getElementById('backRulesBtn2');
+    if (backB) backB.addEventListener('click', goBack);
+
+    if (window.ContentLoader) {
+      window.ContentLoader.loadContentFragment('rules-fragment', 'rulesContainer');
+    } else {
+      // fallback: try to load after a short delay if script loads after this block
+      setTimeout(() => { if (window.ContentLoader) window.ContentLoader.loadContentFragment('rules-fragment', 'rulesContainer'); }, 200);
+    }
   </script>
 </body>
 </html>

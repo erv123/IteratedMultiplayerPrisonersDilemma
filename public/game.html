@@ -3,7 +3,9 @@
 <head>
   <meta charset="utf-8" />
   <title>Game</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
   <link rel="stylesheet" href="/styles.css">
+  <link rel="stylesheet" href="/table-styles.css">
   <style>
     body { font-family: Arial; }
 
@@ -11,15 +13,9 @@
     .container { display:flex; gap:20px; }
     .players { flex: 1 1 60%; }
     .leaderboard { flex: 0 0 30%; border-left:1px solid #ccc; padding-left:16px; }
-    .player-row { display:flex; align-items:center; gap:8px; margin-bottom:8px; }
+    /* legacy .player-row removed — player list now uses TableRenderer */
     .player-name { width:140px; }
     button:disabled, .choice-btn:disabled { background:#ddd; color:#666; cursor:not-allowed; opacity:0.9; }
-    .selected-peace { background: #2e8b57; color: #fff; }
-    .selected-war { background: #b22222; color: #fff; }
-    .cell-war-war { background: #b22222; color: #fff; }
-    .cell-peace-peace { background: #2e8b57; color: #fff; }
-    .cell-war-peace { background: #800080; color: #fff; }
-    .cell-peace-war { background: #000; color: #fff; }
   </style>
 </head>
 <body>
@@ -29,12 +25,19 @@
       <div style="display:flex;gap:12px;align-items:center">
         <div class="brand">Game: <strong><span id="gameId"></span></strong></div>
         <div class="muted">Turn: <span id="turnDisplay"></span></div>
+        <div style="margin-left:12px">
+          <label for="orderToggle" class="muted">Order:</label>
+          <select id="orderToggle" aria-label="Order players and history">
+            <option value="score">By Score</option>
+            <option value="alpha">Alphabetical</option>
+          </select>
+        </div>
       </div>
       <div style="display:flex;gap:10px;align-items:center">
         <div class="muted">User: <span id="username">(guest)</span></div>
-        <a href="/rules.html" class="secondary">Rules</a>
+        <button onclick="window.location.href='/rules.html'" class="secondary">Rules</button>
+        <button onclick="window.location.href='/'" class="secondary">Lobby</button>
         <button id="backToInfoBtn" class="secondary">Back to Info</button>
-        <button id="logoutBtn" class="secondary">Logout</button>
       </div>
     </header>
 
@@ -59,8 +62,9 @@
     </section>
   </div>
 
-  <script src="/api.js"></script>
-  <script src="/polling.js"></script>
-  <script src="/game.js"></script>
+  <script src="/js/api.js"></script>
+  <script src="/js/polling.js"></script>
+  <script src="/js/tableRenderer.js"></script>
+  <script src="/js/game.js"></script>
 </body>
 </html>

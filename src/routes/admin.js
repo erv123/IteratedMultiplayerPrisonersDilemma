@@ -18,10 +18,15 @@ router.get('/users', requireAdmin, async (req, res) => {
   }
 });
 
-router.post('/setResetBypass', requireAdmin, async (req, res) => {
+router.post('/enableReset/:userId', requireAdmin, async (req, res) => {
   try {
-    const { userId, bypass } = req.body;
-    await db.runAsync('UPDATE users SET reset_bypass = ? WHERE id = ?', [bypass ? 1 : 0, userId]);
+    const { userId } = req.params;
+
+    // Always enable the reset bypass for the given user
+    const user = await db.getAsync('SELECT id FROM users WHERE id = ?', [userId]);
+    if (!user) return res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'User not found' } });
+
+    await db.runAsync('UPDATE users SET reset_bypass = 1 WHERE id = ?', [userId]);
     return res.json({ success: true });
   } catch (err) {
     return res.status(500).json({ success: false, error: { code: 'SERVER_ERROR', message: err.message } });

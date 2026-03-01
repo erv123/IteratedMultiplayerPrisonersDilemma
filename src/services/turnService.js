@@ -27,16 +27,31 @@ async function getChoicesForTurn(gameId, turnNumber) {
 async function getPlayerHistory(gameId, playerId, limit = -1) {
   let rows;
   if (limit === -1) {
+    // return all resolved turns for this player
     rows = await db.allAsync(
       'SELECT * FROM turns WHERE game_id = ? AND player_id = ? AND points_awarded IS NOT NULL ORDER BY turn_number ASC',
       [gameId, playerId]
     );
   } else {
-    rows = await db.allAsync(
-      'SELECT * FROM turns WHERE game_id = ? AND player_id = ? AND points_awarded IS NOT NULL ORDER BY turn_number DESC LIMIT ?',
-      [gameId, playerId, limit]
-    );
-    rows = (rows || []).reverse();
+    // Apply limit as number of previous game turns (relative to current_turn)
+    // Fetch current turn for game and compute the resolved turn window: (current_turn - 1) down to (current_turn - limit)
+    const g = await db.getAsync('SELECT current_turn FROM games WHERE id = ?', [gameId]);
+    const currentTurn = g && g.current_turn !== undefined && g.current_turn !== null ? Number(g.current_turn) : null;
+    if (currentTurn === null) {
+      // fallback to previous behavior: latest resolved rows up to limit
+      rows = await db.allAsync(
+        'SELECT * FROM turns WHERE game_id = ? AND player_id = ? AND points_awarded IS NOT NULL ORDER BY turn_number DESC LIMIT ?',
+        [gameId, playerId, limit]
+      );
+      rows = (rows || []).reverse();
+    } else {
+      const maxTurn = currentTurn - 1;
+      const minTurn = Math.max(0, currentTurn - limit);
+      rows = await db.allAsync(
+        'SELECT * FROM turns WHERE game_id = ? AND player_id = ? AND points_awarded IS NOT NULL AND turn_number >= ? AND turn_number <= ? ORDER BY turn_number ASC',
+        [gameId, playerId, minTurn, maxTurn]
+      );
+    }
   }
   return rows.map(r => ({
     id: r.id,

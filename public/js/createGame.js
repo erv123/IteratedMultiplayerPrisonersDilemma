@@ -28,12 +28,32 @@
     alert('Validation failed:\n' + msgs);
   }
 
+  // Initialize payoff matrix using TableRenderer if available
+  function initPayoffMatrix() {
+    const container = document.getElementById('payoffMatrixTable');
+    if (!container || !window.TableRenderer) return;
+    const schema = { columns: [ { key: 'label', title: '' , className: 'payoff-first-col' }, { key: 'peace', title: 'Opponent: Peace' }, { key: 'war', title: 'Opponent: War' } ] };
+    const rows = [
+      { label: 'Player: Peace', peace: { type: 'input', value: { value: 2, name: 'pp' } }, war: { type: 'input', value: { value: 0, name: 'pw' } } },
+      { label: 'Player: War',  peace: { type: 'input', value: { value: 3, name: 'wp' } }, war: { type: 'input', value: { value: 1, name: 'ww' } } },
+    ];
+    window.TableRenderer.createTable(container, schema, rows, { compact: true });
+  }
+
   async function registerGame() {
+    // read payoff values from the TableRenderer inputs if present, otherwise fall back to old ids
+    function getInputVal(name) {
+      const sel = document.querySelector(`#payoffMatrixTable input[name="${name}"]`);
+      if (sel) return Number(sel.value || 0);
+      const el = document.getElementById(name);
+      return el ? Number(el.value || 0) : 0;
+    }
+
     const payoffMatrix = {
-      peace_peace: Number(document.getElementById('pp').value || 0),
-      peace_war: Number(document.getElementById('pw').value || 0),
-      war_peace: Number(document.getElementById('wp').value || 0),
-      war_war: Number(document.getElementById('ww').value || 0),
+      peace_peace: getInputVal('pp'),
+      peace_war: getInputVal('pw'),
+      war_peace: getInputVal('wp'),
+      war_war: getInputVal('ww'),
     };
 
     const errorChance = Number(document.getElementById('errorChance').value || 0);
@@ -89,6 +109,7 @@
     const btn = document.getElementById('registerBtn');
     if (btn) btn.addEventListener('click', registerGame);
     loadSession();
+    initPayoffMatrix();
   });
 
 })();

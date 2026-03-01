@@ -25,6 +25,9 @@ body{
   max-width:var(--max-width);
   margin:0 auto;
 }
+
+/* Ensure content blocks can be reordered responsively (info card may move on small screens) */
+.page{display:flex;flex-direction:column;gap:12px}
 h1{font-size:1.6rem;margin:0 0 12px}
 h2{font-size:1.25rem;margin:0 0 8px}
 h3{font-size:1rem;margin:12px 0}
@@ -55,6 +58,19 @@ h3{font-size:1rem;margin:12px 0}
 .game-setting-input{padding:6px;border-radius:8px;border:1px solid #eef2ff;background:#f8fafc;min-width:60px}
 .payoff-input{padding:4px;border-radius:6px;border:1px solid #eef2ff;background:#fff;min-width:44px;text-align:center;width:100%;box-sizing:border-box}
 .payoff-input:disabled,.game-setting-input:disabled{opacity:1}
+
+/* Leaderboard styling */
+.leaderboard-card{padding:10px}
+.leaderboard-list{display:flex;flex-direction:column;gap:6px}
+.leaderboard-item{display:flex;align-items:center;justify-content:space-between;padding:6px;border-radius:8px;background:linear-gradient(180deg,#fff,#fbfdff);border:1px solid #eef2ff}
+.leaderboard-name{display:flex;align-items:center;gap:8px}
+.leaderboard-dot{width:12px;height:12px;border-radius:50%;display:inline-block}
+.leaderboard-rank{font-weight:700}
+.leaderboard-top3 .leaderboard-rank{font-size:1.15rem}
+.leaderboard-top3 .leaderboard-item:nth-child(1) .leaderboard-rank{font-size:1.35rem}
+.leaderboard-top3 .leaderboard-item:nth-child(2) .leaderboard-rank{font-size:1.15rem}
+.leaderboard-top3 .leaderboard-item:nth-child(3) .leaderboard-rank{font-size:1.05rem}
+.trophy{margin-right:6px}
 
 .percent-suffix{margin-left:8px;color:var(--muted);font-size:0.95rem}
 
@@ -89,6 +105,10 @@ canvas{max-width:100%;height:auto;border-radius:6px}
   .topbar > div:last-child{order:2;align-self:stretch;margin-top:8px;width:100%}
   .topbar > div:first-child{order:1}
 
+  /* On small screens show the mobile variant below the main content */
+  .info-section--wide{display:none}
+  .info-section--mobile{display:block}
+
   /* Container: stack into a single column and enforce desired order:
      auth (aside) -> players (players-card) -> score (score-card) -> settings */
   .container{display:flex;flex-direction:column;gap:12px}
@@ -120,6 +140,21 @@ h5{margin:8px 0;color:var(--muted);font-size:0.95rem}
   .auth-card{grid-area:auth}
   .score-card{grid-area:score}
   .settings-card{grid-area:settings}
+
+  /* Ensure aside stacks child cards with the same gap as the grid columns */
+  .lobby-main > aside{display:flex;flex-direction:column;gap:18px}
+}
+
+/* Info section styling */
+.info-section{padding:12px;background:linear-gradient(180deg,#fff,#fbfdff);border:1px solid #eef2ff}
+.info-section h2{margin-top:0}
+.info-section p{margin:6px 0;color:#0f172a}
+.info-section a{color:var(--accent)}
+
+@media (min-width:801px){
+  /* On wide screens show the wide variant inside the main column and hide the mobile variant */
+  .info-section--wide{display:block}
+  .info-section--mobile{display:none}
 }
 
 /* small utilities */

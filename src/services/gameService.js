@@ -66,4 +66,28 @@ async function startGame(gameId, hostParticipantId) {
   return { success: true };
 }
 
-module.exports = { createGame, getGame, startGame };
+async function updateSettings(gameId, hostParticipantId, payload) {
+  // Validate host
+  const host = await db.getAsync('SELECT * FROM participants WHERE id = ? AND game_id = ? AND is_host = 1', [hostParticipantId, gameId]);
+  if (!host) return { success: false, error: { code: 'FORBIDDEN', message: 'Only host may update settings' } };
+  const gameRow = await db.getAsync('SELECT stage FROM games WHERE id = ?', [gameId]);
+  if (!gameRow) return { success: false, error: { code: 'NOT_FOUND', message: 'Game not found' } };
+  if (Number(gameRow.stage) !== 1) return { success: false, error: { code: 'BAD_REQUEST', message: 'Cannot update settings after game started' } };
+
+  const fields = [];
+  const params = [];
+  if (payload.endChance != null) { fields.push('end_chance = ?'); params.push(Number(payload.endChance)); }
+  if (payload.historyLimit != null) { fields.push('history_limit = ?'); params.push(Number(payload.historyLimit)); }
+  if (payload.payoffMatrix != null) { fields.push('payoff_matrix = ?'); params.push(typeof payload.payoffMatrix === 'string' ? payload.payoffMatrix : JSON.stringify(payload.payoffMatrix)); }
+  if (payload.errorChance != null) { fields.push('error_chance = ?'); params.push(Number(payload.errorChance)); }
+  if (payload.maxPlayers != null) { fields.push('max_players = ?'); params.push(Number(payload.maxPlayers)); }
+
+  if (fields.length === 0) return { success: false, error: { code: 'BAD_REQUEST', message: 'No settings provided' } };
+
+  params.push(gameId);
+  const sql = `UPDATE games SET ${fields.join(', ')} WHERE id = ?`;
+  await db.runAsync(sql, params);
+  return { success: true };
+}
+
+module.exports = { createGame, getGame, startGame, updateSettings };

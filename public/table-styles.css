@@ -1,0 +1,70 @@
+/* Table Renderer styles: keep here to centralize all table-specific styling */
+:root{
+  --tbl-border:#eef2ff;
+  --tbl-radius:8px;
+  --tbl-padding:8px;
+  --muted-color:#6b7280;
+  --accent:#4363d8;
+}
+.tbl{width:100%;border-collapse:collapse;font-family:inherit;background:#fff;border:1px solid var(--tbl-border);border-radius:var(--tbl-radius);overflow:hidden}
+.tbl thead th{background:linear-gradient(180deg,rgba(0,0,0,0.02),rgba(0,0,0,0.01));padding:8px;text-align:left;font-weight:600;border-bottom:1px solid var(--tbl-border)}
+.tbl tbody td{padding:var(--tbl-padding);border-top:1px solid var(--tbl-border);vertical-align:middle}
+.tbl-row:nth-child(odd){background:transparent}
+.tbl-compact thead th,.tbl-compact tbody td{padding:6px}
+.tbl-cell{padding:var(--tbl-padding)}
+.tbl-header{font-weight:700}
+.muted{color:var(--muted-color)}
+.accent{color:var(--accent)}
+.tbl-dot{display:inline-block;width:12px;height:12px;border-radius:50%;margin-right:8px;vertical-align:middle;border:1px solid rgba(0,0,0,0.06)}
+.tbl-dot-label{vertical-align:middle}
+.tbl .readonly-input{background:#f8fafc;border:1px solid #eef2ff;padding:6px;border-radius:6px}
+.tbl .tbl-action-btn{padding:6px 10px;border-radius:6px}
+.tbl .tbl-number{text-align:right}
+.tbl .text-clickable{cursor:pointer;text-decoration:underline}
+
+/* utility backgrounds */
+.bg-green{background:#e6f4ea}
+.bg-red{background:#ffecec}
+
+/* small responsive tweak */
+@media (max-width:600px){
+  .tbl thead th{font-size:0.95rem}
+  .tbl tbody td{font-size:0.95rem;padding:6px}
+}
+
+/* Payoff table: make first column match header emphasis */
+.tbl tbody td.payoff-first-col{font-weight:600}
+
+/* Game Info / Settings card: ensure payoff table fits and use normal weight */
+.settings-card .tbl{width:100%;table-layout:fixed;font-weight:400;font-size:0.95rem}
+.settings-card .tbl thead th,.settings-card .tbl tbody td{font-weight:400}
+.settings-card .tbl tbody td.payoff-first-col{font-weight:400}
+.settings-card .tbl tbody td input,.settings-card .tbl tbody td .readonly-input{width:100%;box-sizing:border-box;padding:6px;font-weight:400}
+.settings-card .payoff-table{width:100%;table-layout:fixed}
+.settings-card .payoff-table td,.settings-card .payoff-table th{font-weight:400}
+
+/* Leaderboard top styles */
+.leader-top1{font-size:1.25rem;font-weight:800}
+.leader-top2{font-size:1.12rem;font-weight:700}
+.leader-top3{font-size:1.05rem;font-weight:700}
+.leader-dot{width:14px;height:14px}
+
+/* History table: fixed layout with ellipsis for narrow columns */
+.history-table{table-layout:fixed;width:100%}
+.history-table th,.history-table td{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.history-table th{padding:6px}
+
+/* Conditional formatting for history cells (based on myChoice/opponentChoice) */
+.cell-war-war{background:#f37b7b;color:#770000}
+.cell-peace-peace{background:#76e794;color:#006324}
+.cell-war-peace{background:#cea438;color:#7a4f00}
+.cell-peace-war{background:#5978de;color:#00227e}
+/* subtle padding and border radius to improve appearance */
+.history-table td.cell-war-war, .history-table td.cell-peace-peace, .history-table td.cell-war-peace, .history-table td.cell-peace-war{border-radius:6px;padding:6px}
+
+/* Selected button styles (moved from page-specific inline styles) */
+.selected-peace{background:#2e8b57;color:#fff}
+.selected-war{background:#b22222;color:#fff}
+
+/* Generic scroll wrapper used by TableRenderer when maxHeight specified */
+.tbl-scroll-container{overflow-y:auto}

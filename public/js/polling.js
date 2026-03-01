@@ -17,9 +17,23 @@
         const result = await fn();
         // reset interval on success
         currentInterval = intervalMs;
+        // preserve scroll position and active focus while listeners update the DOM to avoid jumping
+        const scrollPos = { x: (typeof window !== 'undefined' ? window.scrollX : 0), y: (typeof window !== 'undefined' ? window.scrollY : 0) };
+        const active = (typeof document !== 'undefined' && document.activeElement && document.activeElement !== document.body) ? document.activeElement : null;
         listeners.forEach((l) => {
           try { l(null, result); } catch (e) { console.error('poll listener error', e); }
         });
+        // restore scroll & focus on next paint(s) to let listeners finish DOM updates
+        try {
+          if (typeof window !== 'undefined') {
+            // attempt multiple restorations to survive several DOM mutation phases
+            const restoreOnce = () => {
+              try { window.scrollTo(scrollPos.x, scrollPos.y); } catch (e) { /* ignore */ }
+              try { if (active && typeof active.focus === 'function') active.focus(); } catch (e) { /* ignore */ }
+            };
+            requestAnimationFrame(() => { restoreOnce(); requestAnimationFrame(() => { restoreOnce(); setTimeout(restoreOnce, 80); }); });
+          }
+        } catch (e) { /* ignore if requestAnimationFrame unavailable */ }
       } catch (err) {
         listeners.forEach((l) => {
           try { l(err, null); } catch (e) { console.error('poll listener error', e); }

@@ -122,6 +122,35 @@ router.post('/:gameId/start', async (req, res) => {
   }
 });
 
+// Allow host to update game settings when game is in stage 1
+router.post('/:gameId/updateSettings', async (req, res) => {
+  try {
+    // Resolve participantId similarly to start endpoint
+    let participantId = req.session && req.session.participantId ? req.session.participantId : null;
+    if (!participantId && req.session && req.session.user) {
+      try {
+        const userId = req.session.user.id;
+        const username = req.session.user.username;
+        const db = require('../services/dbWrapper');
+        let row = await db.getAsync('SELECT id, user_id, username FROM participants WHERE game_id = ? AND user_id = ? AND is_host = 1', [req.params.gameId, userId]);
+        if (!row) {
+          row = await db.getAsync('SELECT id, user_id, username FROM participants WHERE game_id = ? AND username = ? AND is_host = 1', [req.params.gameId, username]);
+        }
+        if (row && row.id) {
+          participantId = row.id;
+          req.session.participantId = participantId;
+        }
+      } catch (e) { console.error('resolve participantId error in updateSettings', e); }
+    }
+
+    const out = await gameService.updateSettings(req.params.gameId, participantId, req.body || {});
+    if (!out.success) return res.status(out.error && out.error.code === 'FORBIDDEN' ? 403 : 400).json({ success: false, error: out.error });
+    return res.json({ success: true });
+  } catch (err) {
+    return res.status(500).json({ success: false, error: { code: 'SERVER_ERROR', message: err.message } });
+  }
+});
+
 router.post('/:gameId/join', async (req, res) => {
   try {
     // Joining a game requires an authenticated user - do not allow anonymous/guest joins

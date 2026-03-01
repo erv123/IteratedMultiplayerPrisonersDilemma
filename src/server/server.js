@@ -32,6 +32,19 @@ app.use('/api/admin', require('../routes/admin'));
 // Serve public static assets
 app.use(express.static(path.join(__dirname, '../../public')));
 
+// Lightweight SVG favicon to avoid 404 noise when no favicon file present
+app.get('/favicon.ico', (req, res) => {
+	const svg = `<?xml version="1.0" encoding="UTF-8"?>
+	<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+		<rect width="64" height="64" rx="8" ry="8" fill="#222" />
+		<text x="50%" y="50%" font-family="Arial, Helvetica, sans-serif" font-size="28" fill="#fff" text-anchor="middle" dominant-baseline="central">IP</text>
+	</svg>`;
+	res.type('image/svg+xml');
+	// Small cache for favicon
+	res.setHeader('Cache-Control', 'public, max-age=86400');
+	res.send(svg);
+});
+
 // Support extensionless routing for pages so URLs don't need .html
 app.get('/', (req, res) => res.sendFile(path.join(__dirname, '../../public/index.html')));
 app.get('/createGame', (req, res) => {
@@ -41,6 +54,8 @@ app.get('/createGame', (req, res) => {
 });
 app.get('/gameInfo', (req, res) => res.sendFile(path.join(__dirname, '../../public/gameInfo.html')));
 app.get('/game', (req, res) => res.sendFile(path.join(__dirname, '../../public/game.html')));
+// Profile page (extensionless routing)
+app.get('/profile', (req, res) => res.sendFile(path.join(__dirname, '../../public/profile.html')));
 
 const PORT = process.env.PORT || 3000;
 

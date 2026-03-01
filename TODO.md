@@ -13,18 +13,18 @@ Polishing:
     -~~Dowload game button functionality~~
     -~~Ui update to lightweigt but modern~~
     -~~Rules screen~~
-    -game stettings can be updated by host in game info screen
-    -profile page
-    -create game lobby buttond
-    -extract a generic table renderer to be used across the page to align table structure and have a cell styles for each kind of cell to allow replicating functionality
-    -top bar in game left aligned in thin display. link cleanup
+    -~~game stettings can be updated by host in game info screen~~
+    -~~profile page~~
+    -~~extract a generic table renderer to be used across the page to align table structure and have a cell styles for each kind of cell to allow replicating functionality~~
+    -~~update all tables to use the table renderer~~
+    -redo all alerts
+    -~~index page info block~~
+
+Export and hosting
+    -create a github action to release a new version
 
 
 
-
-improve the leaderbard display and scale the top 3 player name size. add a trophy icon next to the top player. Add a similar leaderboard display to the game info screen but indicate which color does the player correspond to in the graph. improve the graph by writing the player names in a location based on the last plotted point for them and do not display the players color next to their username in the graph
-
-add a game/id/updateSettings end point to allow host user to update the game settings if the game is in stage 1. in the game settings section replace the number display by inputs containing the current game values. add a button to update scores. the display should also change to this only if user is host user if the game is in stage 1
 
 v2 feature update:
 

@@ -3,22 +3,26 @@
 <head>
   <meta charset="utf-8" />
   <title>Game Lobby</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
   <link rel="stylesheet" href="/styles.css">
+  <link rel="stylesheet" href="/table-styles.css">
 </head>
 <body>
   <div class="page">
     <header class="topbar card" style="justify-content:space-between;">
-      <div class="brand">Iterated Prisoners Dilemma</div>
+      <div class="brand">Iterated Multiplayer Prisoners Dilemma</div>
         <div style="display:flex;gap:10px;align-items:center">
         <button id="createGameBtn">Create Game</button>
         <button onclick="window.location.href='/rules.html'" class="secondary" style="margin-left:8px">Rules</button>
       </div>
     </header>
 
+    <!-- Info section: wide and mobile variants. Wide variant appears under the left column; mobile variant sits at the page bottom. -->
+
     <main class="lobby-main">
       <aside>
         <div class="card">
-          <h3>Sign In</h3>
+          <h3 id="authHeader">Sign In</h3>
           <div id="authArea">
             <div id="loginForm" class="form-row">
               <input id="username" placeholder="Username" />
@@ -29,7 +33,6 @@
               <button id="registerBtn" class="secondary">Register</button>
             </div>
             <div id="loggedInActions" style="display:none;margin-top:10px">
-              <div class="muted">Welcome, <span id="welcomeMsg"></span></div>
               <div style="margin-top:8px;display:flex;gap:8px">
                 <button id="profileBtn" class="secondary">Profile</button>
                 <button id="logoutBtn" class="secondary">Log Out</button>
@@ -37,8 +40,9 @@
             </div>
           </div>
         </div>
+        <!-- Wide layout info placeholder — content loaded from /content/gameinfo.html -->
+        <section id="aboutContainer" class="info-section card info-section--wide" aria-labelledby="infoHeadingWide"></section>
       </aside>
-
       <section>
         <div class="card">
           <h2>Active Games</h2>
@@ -47,13 +51,22 @@
         </div>
       </section>
     </main>
+
+    <!-- Mobile layout info placeholder — content loaded from /content/gameinfo.html -->
+    <section id="aboutMobileContainer" class="info-section card info-section--mobile" aria-labelledby="infoHeadingMobile"></section>
   </div>
 
-  <script src="api.js"></script>
-  <script src="polling.js"></script>
-  <script src="index.js"></script>
+  <script src="/js/api.js"></script>
+    <script src="/js/polling.js"></script>
+  <script src="/js/tableRenderer.js"></script>
+  <script src="/js/contentLoader.js"></script>
+  <script src="/js/index.js"></script>
   <script>
     if (typeof initLobby === 'function') initLobby();
+    if (window.ContentLoader) {
+      window.ContentLoader.loadContentFragment('about-fragment', 'aboutContainer');
+      window.ContentLoader.loadContentFragment('about-fragment', 'aboutMobileContainer');
+    }
   </script>
 </body>
 </html>
