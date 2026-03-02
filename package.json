@@ -5,7 +5,8 @@
   "description": "",
   "main": "srnpmc/server/server.js",
   "scripts": {
-    "dev": "nodemon src/server/server.js"
+    "dev": "nodemon src/server/server.js",
+    "start": "node src/server/server.js"
   },
   "keywords": [],
   "author": "Ervins Roderts",
