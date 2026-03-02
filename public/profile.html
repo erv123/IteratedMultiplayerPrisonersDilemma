@@ -8,6 +8,18 @@
   <link rel="stylesheet" href="/table-styles.css">
 </head>
 <body>
+  <header class="topbar card" style="justify-content:space-between; margin-bottom:12px">
+    <div class="brand">Profile</div>
+    <div style="display:flex;align-items:center;gap:8px">
+      <button onclick="window.location.href='/'" class="secondary">Lobby</button>
+      <label for="themeToggle" class="muted" style="font-size:0.95rem;margin-right:6px">Theme</label>
+      <label class="toggle-switch">
+        <input id="themeToggle" type="checkbox" aria-label="Toggle dark mode" />
+        <span class="toggle-slider"></span>
+      </label>
+    </div>
+  </header>
+
   <main class="container">
     <h1>Profile</h1>
 
@@ -56,6 +68,7 @@
 
   <script src="/js/api.js"></script>
   <script src="/js/polling.js"></script>
+  <script src="/js/theme.js"></script>
   <script src="/js/profile.js"></script>
 </body>
 </html>

@@ -22,10 +22,10 @@
     }
   }
 
-  function showValidation(details) {
-    if (!details || !details.length) return alert('Validation failed');
+  async function showValidation(details) {
+    if (!details || !details.length) return await alertService.alert('Validation failed');
     const msgs = details.map(d => `${d.field}: ${d.message} (value=${d.value})`).join('\n');
-    alert('Validation failed:\n' + msgs);
+    await alertService.alert('Validation failed:\n' + msgs);
   }
 
   // Initialize payoff matrix using TableRenderer if available
@@ -58,16 +58,16 @@
 
     const errorChance = Number(document.getElementById('errorChance').value || 0);
     const endChanceVal = document.getElementById('endChance').value;
-    if (endChanceVal === '') return alert('End chance is required and must be between 1 and 99');
+    if (endChanceVal === '') return await alertService.alert('End chance is required and must be between 1 and 99');
     const endChance = Number(endChanceVal);
     const maxPlayers = Number(document.getElementById('maxPlayers').value || 1);
     const historyLimit = Number(document.getElementById('historyLimit').value || 5);
 
     // client-side validation consistent with validators
-    if (Number.isNaN(errorChance) || errorChance < 0 || errorChance > 100) return alert('Error chance must be between 0 and 100');
-    if (!Number.isInteger(endChance) || endChance < 1 || endChance > 99) return alert('End chance must be an integer between 1 and 99');
-    if (!Number.isInteger(maxPlayers) || maxPlayers < 2 || maxPlayers > 40) return alert('Max players must be an integer between 2 and 40');
-    if (!Number.isInteger(historyLimit) || historyLimit < -1) return alert('History limit must be >= -1');
+    if (Number.isNaN(errorChance) || errorChance < 0 || errorChance > 100) return await alertService.alert('Error chance must be between 0 and 100');
+    if (!Number.isInteger(endChance) || endChance < 1 || endChance > 99) return await alertService.alert('End chance must be an integer between 1 and 99');
+    if (!Number.isInteger(maxPlayers) || maxPlayers < 2 || maxPlayers > 40) return await alertService.alert('Max players must be an integer between 2 and 40');
+    if (!Number.isInteger(historyLimit) || historyLimit < -1) return await alertService.alert('History limit must be >= -1');
 
     const payload = {
         name: document.getElementById('gameName').value.trim(),
@@ -78,12 +78,12 @@
       historyLimit,
     };
 
-      if (!payload.name) return alert('Game name is required');
+      if (!payload.name) return await alertService.alert('Game name is required');
 
     try {
       const res = await window.api.post('/games', payload);
       if (res && res.success) {
-        alert('Game registered!');
+        await alertService.alert('Game registered!');
         const gid = res.data && (res.data.gameId || res.data.id || res.data.game_id);
         // Prefer returned gameId, fallback to temp id
         const targetId = gid || gameId;
@@ -93,15 +93,15 @@
 
       if (res && res.error) {
         if (res.error.code === 'VALIDATION_ERROR') {
-          showValidation(res.error.details || []);
+          await showValidation(res.error.details || []);
           return;
         }
-        alert('Error creating game: ' + (res.error.message || 'unknown'));
+        await alertService.alert('Error creating game: ' + (res.error.message || 'unknown'));
       } else {
-        alert('Unexpected response from server');
+        await alertService.alert('Unexpected response from server');
       }
     } catch (err) {
-      alert('Network or server error: ' + (err && err.message));
+      await alertService.alert('Network or server error: ' + (err && err.message));
     }
   }
 

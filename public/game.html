@@ -6,16 +6,16 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <link rel="stylesheet" href="/styles.css">
   <link rel="stylesheet" href="/table-styles.css">
-  <style>
+    <style>
     body { font-family: Arial; }
 
     .topbar { display:flex; gap:12px; align-items:center; margin-bottom:16px; }
     .container { display:flex; gap:20px; }
     .players { flex: 1 1 60%; }
-    .leaderboard { flex: 0 0 30%; border-left:1px solid #ccc; padding-left:16px; }
+    .leaderboard { flex: 0 0 30%; border-left:1px solid var(--muted-border); padding-left:16px; }
     /* legacy .player-row removed — player list now uses TableRenderer */
     .player-name { width:140px; }
-    button:disabled, .choice-btn:disabled { background:#ddd; color:#666; cursor:not-allowed; opacity:0.9; }
+    button:disabled, .choice-btn:disabled { background:var(--disabled-bg); color:var(--disabled-color); cursor:not-allowed; opacity:0.9; }
   </style>
 </head>
 <body>
@@ -24,7 +24,7 @@
     <header class="topbar card" style="justify-content:space-between">
       <div style="display:flex;gap:12px;align-items:center">
         <div class="brand">Game: <strong><span id="gameId"></span></strong></div>
-        <div class="muted">Turn: <span id="turnDisplay"></span></div>
+        <div class="strong">Turn: <span id="turnDisplay"></span></div>
         <div style="margin-left:12px">
           <label for="orderToggle" class="muted">Order:</label>
           <select id="orderToggle" aria-label="Order players and history">
@@ -34,6 +34,13 @@
         </div>
       </div>
       <div style="display:flex;gap:10px;align-items:center">
+        <div style="display:flex;align-items:center;gap:8px;margin-right:8px">
+          <label for="themeToggle" class="muted" style="font-size:0.95rem;margin-right:6px">Theme</label>
+          <label class="toggle-switch">
+            <input id="themeToggle" type="checkbox" aria-label="Toggle dark mode" />
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
         <div class="muted">User: <span id="username">(guest)</span></div>
         <button onclick="window.location.href='/rules.html'" class="secondary">Rules</button>
         <button onclick="window.location.href='/'" class="secondary">Lobby</button>
@@ -65,6 +72,8 @@
   <script src="/js/api.js"></script>
   <script src="/js/polling.js"></script>
   <script src="/js/tableRenderer.js"></script>
+  <script src="/js/theme.js"></script>
+  <script src="/js/alertService.js"></script>
   <script src="/js/game.js"></script>
 </body>
 </html>

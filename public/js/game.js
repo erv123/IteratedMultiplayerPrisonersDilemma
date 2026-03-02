@@ -247,7 +247,7 @@
   }
 
   async function selectChoice(targetId, choice) {
-    if (!myParticipantId) return alert('Not a participant');
+    if (!myParticipantId) { await alertService.alert('Not a participant'); return; }
     // optimistic UI (apply immediately; will be reconciled with server authoritative data)
     activeChoices[String(targetId)] = choice;
     // update table-based row buttons
@@ -272,17 +272,18 @@
   }
 
   async function endTurn() {
-    if (!myParticipantId) return alert('Not a participant');
+    if (!myParticipantId) { await alertService.alert('Not a participant'); return; }
     // verify against authoritative server choices that player has made a choice for every opponent
     try {
       const table = playerListEl.querySelector('table.tbl');
       const opponentIds = table ? Array.from(table.querySelectorAll('tbody tr')).map(r => r.dataset.playerId) : [];
       const serverChoices = await fetchActiveChoices(myParticipantId);
       const missing = opponentIds.find(id => !serverChoices[String(id)]);
-      if (missing) return alert('You must choose Peace or War for every player.');
+      if (missing) { await alertService.alert('You must choose Peace or War for every player.'); return; }
     } catch (e) {
       console.error('failed to verify choices before submit', e);
-      return alert('Failed to verify choices before submitting turn');
+      await alertService.alert('Failed to verify choices before submitting turn');
+      return;
     }
     try {
       await window.api.post(`/participants/${encodeURIComponent(myParticipantId)}/submit`, {});
@@ -305,7 +306,7 @@
       _prevButtonFormattingKey = null;
       disableTurnUI();
       _prevReadyFlag = 1;
-    } catch (e) { console.error('submit failed', e); alert('Failed to submit turn'); }
+    } catch (e) { console.error('submit failed', e); await alertService.alert('Failed to submit turn'); }
   }
 
   async function renderTurnHistory(gameIdParam, participantIdParam) {
@@ -362,7 +363,7 @@
 
         // Build TableRenderer schema/rows for turn history (most recent left)
         // First column is opponent (flexible), subsequent turn columns use the turn number as the column title
-        const cols = [{ key: 'opponent', title: 'Opponent' }].concat(turnsDesc.map((t, i) => ({ key: `t${i}`, title: String(t) })));
+        const cols = [{ key: 'opponent', title: 'Opponent' }].concat(turnsDesc.map((t, i) => ({ key: `t${i}`, title: `Turn: ${String(t)}` })));
         let sortedOpp = ids.slice();
         if (orderBy === 'score') {
           // fetch participant scores for this game and sort by score desc
@@ -391,14 +392,16 @@
             const oppChoice = entry ? (entry.opponentChoice || entry.opponent_choice || '') : '';
             const points = entry && (entry.pointsAwarded !== undefined && entry.pointsAwarded !== null) ? ` (${entry.pointsAwarded})` : '';
             const cellText = `${myChoice || ''}/${oppChoice || ''}${points}`;
-            let cls = '';
+            let cls = null;
             if (myChoice && oppChoice) {
               if (myChoice === 'war' && oppChoice === 'war') cls = 'cell-war-war';
               else if (myChoice === 'peace' && oppChoice === 'peace') cls = 'cell-peace-peace';
               else if (myChoice === 'war' && oppChoice === 'peace') cls = 'cell-war-peace';
               else if (myChoice === 'peace' && oppChoice === 'war') cls = 'cell-peace-war';
             }
-            base[`t${i}`] = { type: 'text', value: cellText, className: cls };
+            const cellSpec = { type: 'text', value: cellText };
+            if (cls) cellSpec.className = cls;
+            base[`t${i}`] = cellSpec;
           });
           return base;
         });
@@ -559,7 +562,7 @@
 
   // End turn button with confirmation
   if (endTurnBtn) endTurnBtn.addEventListener('click', async (e) => {
-    const ok = window.confirm('Are you sure you want to end your turn?'); if (!ok) return; await endTurn();
+    const ok = await alertService.confirm('Are you sure you want to end your turn?'); if (!ok) return; await endTurn();
   });
 
   // Back to info and logout

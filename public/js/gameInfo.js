@@ -317,13 +317,13 @@
 
             const res = await window.api.post(`/games/${encodeURIComponent(gameId)}/updateSettings`, payload);
             if (!res || !res.success) {
-              alert((res && res.error && res.error.message) || 'Failed to update settings');
+              await alertService.alert((res && res.error && res.error.message) || 'Failed to update settings');
             } else {
               // refresh info quickly
               try { await fetchPublicInfo(); } catch (e) {}
-              alert('Settings updated');
+              await alertService.alert('Settings updated');
             }
-          } catch (e) { console.error('update settings error', e); alert('Update failed'); }
+          } catch (e) { console.error('update settings error', e); await alertService.alert('Update failed'); }
           finally { btn.disabled = false; }
         });
       } catch (e) { console.error('attach update button error', e); }
@@ -348,8 +348,37 @@
     const w = canvas.width; const h = canvas.height;
     ctx.clearRect(0,0,w,h);
     const lb = document.getElementById('leaderboardDisplay');
+    // read theme-aware chart colors from CSS variables
+    const cs = getComputedStyle(document.documentElement);
+    const chartAxis = (cs.getPropertyValue('--chart-axis') || '#ccc').trim();
+    const chartMuted = (cs.getPropertyValue('--chart-muted') || '#666').trim();
+    const chartLabel = (cs.getPropertyValue('--chart-label') || '#999').trim();
+    const chartLabelStroke = (cs.getPropertyValue('--chart-label-stroke') || '#ffffff').trim();
+    const chartLabelFill = (cs.getPropertyValue('--chart-label-fill') || '#000000').trim();
+    // build a palette large enough for many players (up to 40)
+    const colors = [];
+    // first, take any explicitly defined CSS vars --chart-col-0..N
+    for (let i = 0; i < 40; i++) {
+      const v = (cs.getPropertyValue(`--chart-col-${i}`) || '').trim();
+      if (v) colors.push(v);
+      else break;
+    }
+    // If CSS didn't define enough, generate the rest algorithmically using HSL
+    const ensure = (count) => {
+      const start = colors.length;
+      for (let i = start; i < count; i++) {
+        // spread hues evenly; offset slightly for variety
+        const hue = Math.round(((i * 360) / count + 17) % 360);
+        const sat = 62; const light = 50;
+        colors.push(`hsl(${hue}, ${sat}%, ${light}%)`);
+      }
+    };
+    // ensure at least 8 for legacy, and at least number of participants (capped at 40)
+    const needed = Math.min(40, Math.max(8, participants ? participants.length : 8));
+    ensure(needed);
+
     if (!participants || participants.length === 0) {
-      ctx.fillStyle = '#666'; ctx.fillText('No score history yet', 10, 20);
+      ctx.fillStyle = chartMuted; ctx.fillText('No score history yet', 10, 20);
       if (lb) lb.textContent = '(no history)';
       return;
     }
@@ -365,18 +394,19 @@
     const minScore = Math.min(0, minFound); const maxScore = Math.max(0, maxFound);
     const range = Math.max(1, maxScore - minScore);
     const margin = 40; const plotW = w - margin * 2; const plotH = h - margin * 2;
-    ctx.strokeStyle = '#ccc'; ctx.beginPath(); ctx.moveTo(margin, margin); ctx.lineTo(margin, margin + plotH); ctx.lineTo(margin + plotW, margin + plotH); ctx.stroke();
+    ctx.strokeStyle = chartAxis; ctx.beginPath(); ctx.moveTo(margin, margin); ctx.lineTo(margin, margin + plotH); ctx.lineTo(margin + plotW, margin + plotH); ctx.stroke();
     // turns = include initial 0 plus each recorded turn -> N+1 tick marks
     const turns = Math.max(1, maxLen + 1);
-    for (let i = 0; i < turns; i++) { const x = margin + (i / Math.max(1, turns - 1)) * plotW; ctx.fillStyle = '#999'; ctx.fillText(String(i), x - 6, margin + plotH + 14); }
-    const colors = ['#e6194b','#3cb44b','#4363d8','#f58231','#911eb4','#46f0f0','#f032e6','#bcf60c'];
+    for (let i = 0; i < turns; i++) { const x = margin + (i / Math.max(1, turns - 1)) * plotW; ctx.fillStyle = chartLabel; ctx.fillText(String(i), x - 6, margin + plotH + 14); }
 
+    // choose thinner lines when many players to avoid visual clutter
+    const manyPlayers = participants && participants.length > 12;
     // draw player lines and capture last points for labeling and leaderboard
     const lastPoints = {};
     participants.forEach((p, idx) => {
       const hist = p.scoreHistory || p.score_history || [];
       const color = colors[idx % colors.length];
-      ctx.strokeStyle = color; ctx.lineWidth = 2; ctx.beginPath();
+      ctx.strokeStyle = color; ctx.lineWidth = manyPlayers ? 1 : 2; ctx.beginPath();
       // start at turn 0,0
       const x0 = margin + (0 / Math.max(1, turns - 1)) * plotW;
       const y0 = margin + plotH - ((0 - minScore) / range) * plotH;
@@ -394,18 +424,21 @@
       lastPoints[key] = { x: last.x, y: last.y, value: last.value, name: p.username || p.name || key, color };
     });
 
-    // draw name labels at each player's last plotted point
+    // draw name labels at each player's last plotted point — only when not too many players
     const names = Object.values(lastPoints);
-    names.forEach((pt, i) => {
-      const offX = 6;
-      const offY = -6 - (i % 3) * 10; // small stagger to reduce overlap
-      ctx.font = '12px sans-serif';
-      ctx.lineWidth = 3;
-      ctx.strokeStyle = '#fff';
-      ctx.strokeText(pt.name, pt.x + offX, pt.y + offY);
-      ctx.fillStyle = '#000';
-      ctx.fillText(pt.name, pt.x + offX, pt.y + offY);
-    });
+    const drawLabels = !manyPlayers && (names.length <= 12);
+    if (drawLabels) {
+      names.forEach((pt, i) => {
+        const offX = 6;
+        const offY = -6 - (i % 3) * 10; // small stagger to reduce overlap
+        ctx.font = '12px sans-serif';
+        ctx.lineWidth = 3;
+        ctx.strokeStyle = chartLabelStroke;
+        ctx.strokeText(pt.name, pt.x + offX, pt.y + offY);
+        ctx.fillStyle = chartLabelFill;
+        ctx.fillText(pt.name, pt.x + offX, pt.y + offY);
+      });
+    }
 
     // render leaderboard in sidebar (sorted by last score)
     if (lb) {
@@ -452,13 +485,13 @@
     try {
       const res = await window.api.post(`/games/${encodeURIComponent(gameId)}/join`, {});
       if (!res || !res.success) {
-        alert((res && res.error && res.error.message) || 'Failed to join game');
+        await alertService.alert((res && res.error && res.error.message) || 'Failed to join game');
         return false;
       }
       return true;
     } catch (e) {
       console.error('joinAsUser error', e);
-      alert('Failed to join game');
+      await alertService.alert('Failed to join game');
       return false;
     }
   }
@@ -469,16 +502,16 @@
     const g = info.game;
     const isFull = (g.currentPlayers || g.current_players || 0) >= (g.maxPlayers || g.max_players || 0);
     if (!isFull) {
-      const ok = confirm('Game is not full. Start anyway?'); if (!ok) return;
+      const ok = await alertService.confirm('Game is not full. Start anyway?'); if (!ok) return;
     }
     try {
       const res = await window.api.post(`/games/${encodeURIComponent(gameId)}/start`, {});
       if (res && res.success) {
           window.location.href = `/game?gameId=${encodeURIComponent(gameId)}`;
       } else {
-        alert((res && res.error && res.error.message) || 'Failed to start game');
+        await alertService.alert((res && res.error && res.error.message) || 'Failed to start game');
       }
-    } catch (e) { alert('Failed to start game'); }
+    } catch (e) { await alertService.alert('Failed to start game'); }
   }
 
   logoutBtn.addEventListener('click', async () => {
@@ -580,12 +613,12 @@
           downloadGameBtn.style.display = '';
           downloadGameBtn.onclick = async () => {
             try {
-              if (!confirm('Download game as CSV?')) return;
+              const ok = await alertService.confirm('Download game as CSV?'); if (!ok) return;
               const url = `/api/games/${encodeURIComponent(gameId)}/download`;
               const resp = await fetch(url, { credentials: 'same-origin' });
-              if (!resp.ok) { const body = await resp.json().catch(() => null); const msg = body && body.error && body.error.message ? body.error.message : 'Failed to fetch game data'; alert(msg); return; }
-              const payload = await resp.json();
-              if (!payload || !payload.success || !payload.data) { alert('Invalid game data'); return; }
+              if (!resp.ok) { const body = await resp.json().catch(() => null); const msg = body && body.error && body.error.message ? body.error.message : 'Failed to fetch game data'; await alertService.alert(msg); return; }
+                const payload = await resp.json();
+                if (!payload || !payload.success || !payload.data) { await alertService.alert('Invalid game data'); return; }
               const { game, participants, turns } = payload.data;
 
               // CSV helper
@@ -609,7 +642,7 @@
               const safeName = (game && game.name) ? String(game.name).replace(/[^a-z0-9-_]/gi, '_') : gameId;
               const filename = `game_${safeName}_export.csv`;
               const link = document.createElement('a'); link.href = URL.createObjectURL(blob); link.download = filename; document.body.appendChild(link); link.click(); link.remove(); setTimeout(() => URL.revokeObjectURL(link.href), 5000);
-            } catch (e) { console.error('download error', e); alert('Download failed'); }
+            } catch (e) { console.error('download error', e); await alertService.alert('Download failed'); }
           };
         } else {
           downloadGameBtn.style.display = 'none';
@@ -623,12 +656,12 @@
           downloadZipBtn.style.display = '';
           downloadZipBtn.onclick = async () => {
             try {
-              if (!confirm('Download game as ZIP?')) return;
+              const ok = await alertService.confirm('Download game as ZIP?'); if (!ok) return;
               const url = `/api/games/${encodeURIComponent(gameId)}/download`;
               const resp = await fetch(url, { credentials: 'same-origin' });
-              if (!resp.ok) { const body = await resp.json().catch(() => null); const msg = body && body.error && body.error.message ? body.error.message : 'Failed to fetch game data'; alert(msg); return; }
+              if (!resp.ok) { const body = await resp.json().catch(() => null); const msg = body && body.error && body.error.message ? body.error.message : 'Failed to fetch game data'; await alertService.alert(msg); return; }
               const payload = await resp.json();
-              if (!payload || !payload.success || !payload.data) { alert('Invalid game data'); return; }
+              if (!payload || !payload.success || !payload.data) { await alertService.alert('Invalid game data'); return; }
               const { game, participants, turns } = payload.data;
 
               const esc = v => { if (v === null || v === undefined) return ''; const s = String(v); if (s.indexOf(',') >= 0 || s.indexOf('\n') >= 0 || s.indexOf('"') >= 0) return '"' + s.replace(/"/g,'""') + '"'; return s; };
@@ -654,7 +687,7 @@
               }
 
               const JSZip = await loadJSZip();
-              if (!JSZip) return alert('Failed to load zip library');
+              if (!JSZip) { await alertService.alert('Failed to load zip library'); return; }
               const zip = new JSZip();
               zip.file('games.csv', gamesCsv);
               zip.file('participants.csv', participantsCsv);
@@ -664,7 +697,7 @@
               const safeNameZip = (game && game.name) ? String(game.name).replace(/[^a-z0-9-_]/gi, '_') : gameId;
               const filename = `game_${safeNameZip}_export.zip`;
               const link = document.createElement('a'); link.href = URL.createObjectURL(content); link.download = filename; document.body.appendChild(link); link.click(); link.remove(); setTimeout(() => URL.revokeObjectURL(link.href), 5000);
-            } catch (e) { console.error('zip download error', e); alert('ZIP download failed'); }
+            } catch (e) { console.error('zip download error', e); await alertService.alert('ZIP download failed'); }
           };
         } else {
           downloadZipBtn.style.display = 'none';
@@ -682,6 +715,73 @@
         const editableFlag = !!(currentAmHost && numericStage === 1);
         console.debug('render invoke: stageNum=', stageNum, 'numericStage=', numericStage, 'currentAmHost=', currentAmHost, 'editableFlag=', editableFlag);
         renderGameSettings(info.game, editableFlag);
+        // Ensure host UI elements are enabled and update button present when editable
+        try {
+          const gs = document.getElementById('gameSettings');
+          if (gs) {
+            const inputs = gs.querySelectorAll('.game-setting-input');
+            inputs.forEach(i => { i.disabled = !editableFlag; });
+            // ensure update button exists and is wired when editable
+            const existingBtn = document.getElementById('updateSettingsBtn');
+            if (editableFlag && !existingBtn) {
+              const upd = document.createElement('div'); upd.style.marginTop = '8px';
+              const btn = document.createElement('button'); btn.textContent = 'Update Settings'; btn.className = 'btn'; btn.id = 'updateSettingsBtn';
+              upd.appendChild(btn);
+              gs.appendChild(upd);
+              btn.addEventListener('click', async () => {
+                try {
+                  btn.disabled = true;
+                  const payload = {};
+                  const inputs = gs.querySelectorAll('.game-setting-input');
+                  inputs.forEach(i => {
+                    const k = i.dataset && i.dataset.key;
+                    if (!k) return;
+                    const v = i.value;
+                    if (k === 'historyLimit' || k === 'maxPlayers') payload[k] = Number(v || 0);
+                    else if (k === 'endChance' || k === 'errorChance') payload[k] = Number(v || 0);
+                    else payload[k] = v;
+                  });
+                  const pm = document.getElementById('payoffMatrixDisplay');
+                  if (pm) {
+                    const table = pm.querySelector('table');
+                    const matrix = [];
+                    if (table) {
+                      const trs = table.querySelectorAll('tbody tr');
+                      trs.forEach(tr => {
+                        const cells = tr.querySelectorAll('td');
+                        const row = [];
+                        for (let ci = 1; ci < cells.length; ci++) {
+                          const inp = cells[ci].querySelector('input');
+                          row.push(inp ? (inp.value === '' ? '' : (isFinite(inp.value) ? Number(inp.value) : inp.value)) : cells[ci].textContent);
+                        }
+                        matrix.push(row);
+                      });
+                    } else {
+                      const rows = pm.querySelectorAll('div.tr, tr');
+                      if (rows && rows.length) {
+                        rows.forEach(r => {
+                          const ins = r.querySelectorAll('input');
+                          const row = [];
+                          ins.forEach((ii, idx) => { if (idx > 0) row.push(ii.value === '' ? '' : (isFinite(ii.value) ? Number(ii.value) : ii.value)); });
+                          if (row.length) matrix.push(row);
+                        });
+                      }
+                    }
+                    if (matrix.length) payload.payoffMatrix = matrix;
+                  }
+                  const res = await window.api.post(`/games/${encodeURIComponent(gameId)}/updateSettings`, payload);
+                  if (!res || !res.success) {
+                    await alertService.alert((res && res.error && res.error.message) || 'Failed to update settings');
+                  } else {
+                    try { await fetchPublicInfo(); } catch (e) {}
+                    await alertService.alert('Settings updated');
+                  }
+                } catch (e) { console.error('update settings error', e); await alertService.alert('Update failed'); }
+                finally { btn.disabled = false; }
+              });
+            }
+          }
+        } catch (e) { console.error('ensure host UI error', e); }
       } catch (e) { console.error('renderGameSettings error after session check', e); }
     } catch (e) { console.error('session check error', e); }
   });

@@ -1,30 +1,23 @@
 /* Table Renderer styles: keep here to centralize all table-specific styling */
-:root{
-  --tbl-border:#eef2ff;
-  --tbl-radius:8px;
-  --tbl-padding:8px;
-  --muted-color:#6b7280;
-  --accent:#4363d8;
-}
-.tbl{width:100%;border-collapse:collapse;font-family:inherit;background:#fff;border:1px solid var(--tbl-border);border-radius:var(--tbl-radius);overflow:hidden}
-.tbl thead th{background:linear-gradient(180deg,rgba(0,0,0,0.02),rgba(0,0,0,0.01));padding:8px;text-align:left;font-weight:600;border-bottom:1px solid var(--tbl-border)}
-.tbl tbody td{padding:var(--tbl-padding);border-top:1px solid var(--tbl-border);vertical-align:middle}
+.tbl{width:100%;border-collapse:collapse;font-family:inherit;background:var(--card);border:1px solid var(--muted-border);border-radius:8px;overflow:hidden}
+.tbl thead th{background:linear-gradient(180deg,rgba(0,0,0,0.02),rgba(0,0,0,0.01));padding:8px;text-align:left;font-weight:600;border-bottom:1px solid var(--muted-border)}
+.tbl tbody td{padding:8px;border-top:1px solid var(--muted-border);vertical-align:middle}
 .tbl-row:nth-child(odd){background:transparent}
 .tbl-compact thead th,.tbl-compact tbody td{padding:6px}
-.tbl-cell{padding:var(--tbl-padding)}
+.tbl-cell{padding:8px}
 .tbl-header{font-weight:700}
-.muted{color:var(--muted-color)}
+.muted{color:var(--muted)}
 .accent{color:var(--accent)}
 .tbl-dot{display:inline-block;width:12px;height:12px;border-radius:50%;margin-right:8px;vertical-align:middle;border:1px solid rgba(0,0,0,0.06)}
 .tbl-dot-label{vertical-align:middle}
-.tbl .readonly-input{background:#f8fafc;border:1px solid #eef2ff;padding:6px;border-radius:6px}
+.tbl .readonly-input{background:var(--input-bg);border:1px solid var(--input-border);padding:6px;border-radius:6px;color:var(--text)}
 .tbl .tbl-action-btn{padding:6px 10px;border-radius:6px}
 .tbl .tbl-number{text-align:right}
 .tbl .text-clickable{cursor:pointer;text-decoration:underline}
 
 /* utility backgrounds */
-.bg-green{background:#e6f4ea}
-.bg-red{background:#ffecec}
+.bg-green{background:var(--cell-peace-peace-bg, #e6f4ea)}
+.bg-red{background:var(--cell-war-war-bg, #ffecec)}
 
 /* small responsive tweak */
 @media (max-width:600px){
@@ -55,16 +48,18 @@
 .history-table th{padding:6px}
 
 /* Conditional formatting for history cells (based on myChoice/opponentChoice) */
-.cell-war-war{background:#f37b7b;color:#770000}
-.cell-peace-peace{background:#76e794;color:#006324}
-.cell-war-peace{background:#cea438;color:#7a4f00}
-.cell-peace-war{background:#5978de;color:#00227e}
+/* conditional cell colors (use variables so dark mode can override) */
+.history-table td.cell-war-war{background:var(--cell-war-war-bg);color:var(--cell-war-war-color)}
+.history-table td.cell-peace-peace{background:var(--cell-peace-peace-bg);color:var(--cell-peace-peace-color)}
+.history-table td.cell-war-peace{background:var(--cell-war-peace-bg);color:var(--cell-war-peace-color)}
+.history-table td.cell-peace-war{background:var(--cell-peace-war-bg);color:var(--cell-peace-war-color)}
 /* subtle padding and border radius to improve appearance */
 .history-table td.cell-war-war, .history-table td.cell-peace-peace, .history-table td.cell-war-peace, .history-table td.cell-peace-war{border-radius:6px;padding:6px}
 
-/* Selected button styles (moved from page-specific inline styles) */
-.selected-peace{background:#2e8b57;color:#fff}
-.selected-war{background:#b22222;color:#fff}
+
+/* Ensure selected styles override table-action defaults (higher specificity) */
+.tbl .tbl-action-btn.selected-peace{background:var(--selected-peace-bg);color:var(--selected-peace-color)}
+.tbl .tbl-action-btn.selected-war{background:var(--selected-war-bg);color:var(--selected-war-color)}
 
 /* Generic scroll wrapper used by TableRenderer when maxHeight specified */
 .tbl-scroll-container{overflow-y:auto}

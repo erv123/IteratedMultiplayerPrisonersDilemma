@@ -18,7 +18,8 @@ Polishing:
     -~~extract a generic table renderer to be used across the page to align table structure and have a cell styles for each kind of cell to allow replicating functionality~~
     -~~update all tables to use the table renderer~~
     -redo all alerts
-    -~~index page info block~~
+    -~~index page info block~
+    -add dark mode toggle
 
 Export and hosting
     -create a github action to release a new version

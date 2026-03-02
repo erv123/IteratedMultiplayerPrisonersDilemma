@@ -14,6 +14,13 @@
         <div style="display:flex;gap:10px;align-items:center">
         <button id="createGameBtn">Create Game</button>
         <button onclick="window.location.href='/rules.html'" class="secondary" style="margin-left:8px">Rules</button>
+        <div style="display:flex;align-items:center;gap:8px;margin-left:8px">
+          <label for="themeToggle" class="muted" style="font-size:0.95rem;margin-right:6px">Theme</label>
+          <label class="toggle-switch">
+            <input id="themeToggle" type="checkbox" aria-label="Toggle dark mode" />
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
       </div>
     </header>
 
@@ -59,6 +66,8 @@
   <script src="/js/api.js"></script>
     <script src="/js/polling.js"></script>
   <script src="/js/tableRenderer.js"></script>
+  <script src="/js/theme.js"></script>
+  <script src="/js/alertService.js"></script>
   <script src="/js/contentLoader.js"></script>
   <script src="/js/index.js"></script>
   <script>

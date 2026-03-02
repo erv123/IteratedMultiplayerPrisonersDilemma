@@ -15,6 +15,13 @@
       </div>
       <div style="display:flex;gap:8px;align-items:center">
         <button id="backRulesBtn" class="secondary">Back</button>
+        <div style="display:flex;align-items:center;gap:8px;margin-left:8px">
+          <label for="themeToggle" class="muted" style="font-size:0.95rem;margin-right:6px">Theme</label>
+          <label class="toggle-switch">
+            <input id="themeToggle" type="checkbox" aria-label="Toggle dark mode" />
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
       </div>
     </header>
 
@@ -26,9 +33,17 @@
 
   </div>
 
+  <script src="/js/theme.js"></script>
   <script src="/js/contentLoader.js"></script>
   <script>
-    function goBack(){ if (window.history && window.history.length>1) return window.history.back(); window.location.href='/'; }
+    function goBack(){
+      try {
+        const current = document.documentElement.getAttribute('data-theme') || sessionStorage.getItem('theme') || 'auto';
+        try { sessionStorage.setItem('theme', current); } catch(e) {}
+      } catch (e) {}
+      if (window.history && window.history.length>1) return window.history.back();
+      window.location.href='/';
+    }
     const backA = document.getElementById('backRulesBtn');
     if (backA) backA.addEventListener('click', goBack);
     const backB = document.getElementById('backRulesBtn2');

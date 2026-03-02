@@ -40,17 +40,45 @@ let _prevSessionLoggedIn = null;
 // register a 'link' cell type for TableRenderer (renders name links)
 if (window.TableRenderer && typeof window.TableRenderer.registerCellType === 'function') {
   window.TableRenderer.registerCellType('link', function(cellSpec){
-    const a = document.createElement('a');
+    const btn = document.createElement('button');
+    btn.type = 'button';
     const v = cellSpec && cellSpec.value ? cellSpec.value : cellSpec;
-    a.href = v && v.href ? v.href : '#';
-    a.textContent = v && v.text ? String(v.text) : (typeof v === 'string' ? v : '');
-    a.style.textDecoration = 'none';
-    a.style.color = 'blue';
-    return a;
+    const href = v && v.href ? v.href : '#';
+    btn.textContent = v && v.text ? String(v.text) : (typeof v === 'string' ? v : '');
+    btn.className = 'btn btn-link';
+    btn.addEventListener('click', () => { if (href && href !== '#') window.location.href = href; });
+    return btn;
   });
 }
 
 async function initLobby() {
+  // Theme initialization: respect system preference, allow session override via sessionStorage
+  try {
+    const themeToggle = document.getElementById('themeToggle');
+    const applyTheme = (mode) => {
+      // mode: 'dark' | 'light' | 'auto'
+      if (!mode) mode = 'auto';
+      document.documentElement.setAttribute('data-theme', mode);
+      if (themeToggle) themeToggle.checked = (mode === 'dark');
+    };
+    const stored = sessionStorage.getItem('theme');
+    if (stored === 'dark' || stored === 'light') {
+      applyTheme(stored);
+    } else {
+      // respect prefers-color-scheme but mark as auto
+      applyTheme('auto');
+      const prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+      if (themeToggle) themeToggle.checked = prefersDark;
+    }
+    if (themeToggle) {
+      themeToggle.addEventListener('change', (e) => {
+        const checked = !!e.target.checked;
+        const chosen = checked ? 'dark' : 'light';
+        sessionStorage.setItem('theme', chosen);
+        applyTheme(chosen);
+      });
+  }
+  } catch (e) { /* ignore theme init errors */ }
   document.getElementById('loginBtn').addEventListener('click', login);
   document.getElementById('registerBtn').addEventListener('click', register);
   document.getElementById('logoutBtn').addEventListener('click', logout);
@@ -158,7 +186,7 @@ function updateAuthUI() {
 async function login() {
   const username = document.getElementById('username').value.trim();
   const password = document.getElementById('password').value;
-  if (!username || !password) return alert('Username and password required');
+  if (!username || !password) return await alertService.alert('Username and password required');
 
   try {
     const data = await window.api.post('/auth/login', { username, password });
@@ -166,17 +194,17 @@ async function login() {
       await refreshSession();
       fetchGameList();
     } else {
-      alert((data && data.error && data.error.message) || 'Login failed');
+      await alertService.alert((data && data.error && data.error.message) || 'Login failed');
     }
   } catch (e) {
-    alert('Network error');
+    await alertService.alert('Network error');
   }
 }
 
 async function register() {
   const username = document.getElementById('username').value.trim();
   const password = document.getElementById('password').value;
-  if (!username || !password) return alert('Username and password required');
+  if (!username || !password) return await alertService.alert('Username and password required');
 
   try {
     const data = await window.api.post('/auth/register', { username, password });
@@ -184,10 +212,10 @@ async function register() {
       await refreshSession();
       fetchGameList();
     } else {
-      alert((data && data.error && data.error.message) || 'Registration failed');
+      await alertService.alert((data && data.error && data.error.message) || 'Registration failed');
     }
   } catch (e) {
-    alert('Network error');
+    await alertService.alert('Network error');
   }
 }
 
@@ -202,12 +230,13 @@ async function logout() {
 }
 
 function makeGameLink(gameId, name) {
-  const a = document.createElement('a');
-  a.href = `/gameInfo?gameId=${encodeURIComponent(gameId)}`;
-  a.textContent = (name && String(name).trim()) ? String(name) : String(gameId);
-  a.style.textDecoration = 'none';
-  a.style.color = 'blue';
-  return a;
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.className = 'btn btn-link';
+  const href = `/gameInfo?gameId=${encodeURIComponent(gameId)}`;
+  btn.textContent = (name && String(name).trim()) ? String(name) : String(gameId);
+  btn.addEventListener('click', () => { window.location.href = href; });
+  return btn;
 }
 
 function stageLabel(n) {

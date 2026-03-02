@@ -110,6 +110,23 @@
       if (Array.isArray(cellSpec.className)) cellSpec.className.forEach(c=> td.classList.add(c));
       else td.classList.add(cellSpec.className);
     }
+    // If conditional cell classes like 'cell-war-war' are present, apply their
+    // theme-driven background and text color to the whole TD so the entire
+    // cell surface is colored (not just inner content). This reads CSS
+    // variables named like --cell-war-war-bg and --cell-war-war-color.
+    try {
+      const cs = getComputedStyle(document.documentElement);
+      const classes = Array.from(td.classList || []);
+      classes.forEach(cl => {
+        if (typeof cl === 'string' && cl.indexOf('cell-') === 0) {
+          const varBase = `--${cl}`;
+          const bg = cs.getPropertyValue(`${varBase}-bg`).trim();
+          const color = cs.getPropertyValue(`${varBase}-color`).trim();
+          if (bg) td.style.background = bg;
+          if (color) td.style.color = color;
+        }
+      });
+    } catch (e) { /* ignore safe failures */ }
   }
 
   function buildCell(col, rowObj, rowIndex, colIndex){
@@ -122,7 +139,20 @@
     const type = (cellSpec.type || 'text');
     const renderer = cellTypes.has(type) ? cellTypes.get(type) : (cellTypes.get('text'));
     const content = renderer(cellSpec);
-    if (content) td.appendChild(content);
+    if (content) {
+      td.appendChild(content);
+      // also mirror any cell className onto the content element when appropriate
+      try {
+        const addClassToContent = (c) => {
+          if (!c) return;
+          if (content && content.classList) content.classList.add(c);
+        };
+        if (cellSpec && cellSpec.className) {
+          if (Array.isArray(cellSpec.className)) cellSpec.className.forEach(addClassToContent);
+          else addClassToContent(cellSpec.className);
+        }
+      } catch (e) { /* ignore */ }
+    }
     return td;
   }
 

@@ -17,6 +17,13 @@
           <div id="hostInfo" class="muted">Checking session...</div>
           <button onclick="window.location.href='/rules.html'" class="secondary">Rules</button>
           <button onclick="window.location.href='/'" class="secondary">Lobby</button>
+          <div style="display:flex;align-items:center;gap:8px;margin-left:8px">
+            <label for="themeToggle" class="muted" style="font-size:0.95rem;margin-right:6px">Theme</label>
+            <label class="toggle-switch">
+              <input id="themeToggle" type="checkbox" aria-label="Toggle dark mode" />
+              <span class="toggle-slider"></span>
+            </label>
+          </div>
         </div>
       </div>
 
@@ -60,6 +67,8 @@
 
     <script src="/js/api.js"></script>
     <script src="/js/tableRenderer.js"></script>
+    <script src="/js/theme.js"></script>
+    <script src="/js/alertService.js"></script>
     <script src="/js/createGame.js"></script>
   </div>
 </body>
