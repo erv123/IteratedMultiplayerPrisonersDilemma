@@ -3,6 +3,7 @@ const router = express.Router();
 const { registerValidator, loginValidator, resetPasswordValidator } = require('./validators/authValidator');
 const { handleValidation } = require('./validators/handleValidation');
 const authService = require('../services/authService');
+const presenceService = require('../services/presenceService');
 
 router.post('/register', registerValidator, handleValidation, async (req, res) => {
   try {
@@ -26,6 +27,8 @@ router.post('/login', loginValidator, handleValidation, async (req, res) => {
     const user = await authService.verifyPassword(username, password);
     if (!user) return res.status(401).json({ success: false, error: { code: 'AUTH_FAILED', message: 'Invalid credentials' } });
     req.session.user = { id: user.id, username: username, isAdmin: user.isAdmin };
+      // mark presence
+      try { await presenceService.markOnline(user.id); } catch (e) { /* ignore presence errors */ }
     return res.json({ success: true, data: { id: user.id, username } });
   } catch (err) {
     return res.status(500).json({ success: false, error: { code: 'SERVER_ERROR', message: err.message || 'Server error' } });
@@ -33,6 +36,11 @@ router.post('/login', loginValidator, handleValidation, async (req, res) => {
 });
 
 router.post('/logout', (req, res) => {
+  const uid = req.session && req.session.user ? req.session.user.id : null;
+  // mark offline if possible
+  if (uid) {
+    try { require('../services/presenceService').markOffline(uid).catch(() => {}); } catch (e) { /* ignore */ }
+  }
   req.session.destroy(err => {
     if (err) return res.status(500).json({ success: false, error: { code: 'SERVER_ERROR', message: 'Failed to destroy session' } });
     return res.json({ success: true });

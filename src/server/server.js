@@ -28,6 +28,7 @@ app.use('/api/participants', require('../routes/participants'));
 app.use('/api/turns', require('../routes/turns'));
 app.use('/api/scores', require('../routes/scores'));
 app.use('/api/admin', require('../routes/admin'));
+app.use('/api/presence', require('../routes/presence'));
 
 // Serve public static assets
 app.use(express.static(path.join(__dirname, '../../public')));

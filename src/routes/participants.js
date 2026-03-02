@@ -192,4 +192,15 @@ router.get('/:participantId/opponents', async (req, res) => {
   }
 });
 
+// Return list of currently logged-in users (sessions that have `user` set)
+router.get('/online', async (req, res) => {
+  try {
+    const presence = require('../services/presenceService');
+    const rows = await presence.getOnline(120);
+    return res.json({ success: true, data: rows.map(r => ({ id: r.id, username: r.username, last_action: r.last_action, is_online: !!r.is_online })) });
+  } catch (err) {
+    return res.status(500).json({ success: false, error: { code: 'SERVER_ERROR', message: err.message } });
+  }
+});
+
 module.exports = router;

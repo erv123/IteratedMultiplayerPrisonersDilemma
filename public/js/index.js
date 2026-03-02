@@ -112,6 +112,34 @@ async function initLobby() {
       return await window.api.get('/games');
     }, 3000, { immediate: true, backoff: { factor: 2, maxMs: 60000 }, jitter: 0.1 });
 
+    // Poll players online and render into the sidebar card
+    const onlinePoll = window.polling.startPolling('lobby.online', async () => {
+      return await window.api.get('/presence/online');
+    }, 5000, { immediate: true, backoff: { factor: 2, maxMs: 30000 }, jitter: 0.2 });
+
+    onlinePoll.subscribe((err, res) => {
+      const container = document.getElementById('onlinePlayers');
+      if (!container) return;
+      if (err || !res || !res.success) {
+        container.textContent = 'Unable to fetch online players';
+        return;
+      }
+      const list = Array.isArray(res.data) ? res.data : [];
+      if (list.length === 0) {
+        container.textContent = 'No players online';
+        return;
+      }
+      container.innerHTML = '';
+      const ul = document.createElement('ul');
+      ul.style.margin = 0; ul.style.padding = '0 0 0 14px';
+      for (const u of list) {
+        const li = document.createElement('li');
+        li.textContent = u.username || String(u.id || '');
+        ul.appendChild(li);
+      }
+      container.appendChild(ul);
+    });
+
     gamesPoll.subscribe(async (err, res) => {
       if (!err && res && res.success) {
         await renderGameListFromRows(res.data || []);

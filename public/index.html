@@ -56,6 +56,10 @@
           <div id="gamesContainer" style="margin-top:8px"></div>
           <p id="output" class="muted" style="margin-top:8px"></p>
         </div>
+        <div class="card" style="margin-top:12px">
+          <h3>Players Online</h3>
+          <div id="onlinePlayers" style="margin-top:8px">Loading…</div>
+        </div>
       </section>
     </main>
 
@@ -69,6 +73,7 @@
   <script src="/js/theme.js"></script>
   <script src="/js/alertService.js"></script>
   <script src="/js/contentLoader.js"></script>
+  <script src="/js/presence.js"></script>
   <script src="/js/index.js"></script>
   <script>
     if (typeof initLobby === 'function') initLobby();
