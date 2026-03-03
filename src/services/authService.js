@@ -1,10 +1,11 @@
-const { v4: uuidv4 } = require('uuid');
 const bcrypt = require('bcryptjs');
 const db = require('./dbWrapper');
 
 async function createUser(username, password, opts = {}) {
   const existing = await db.getAsync('SELECT id FROM users WHERE username = ?', [username]);
   if (existing) return { success: false, error: { code: 'CONFLICT', message: 'Username taken' } };
+  // `uuid` package is ESM-only in recent releases; use dynamic import to load it safely from CommonJS
+  const { v4: uuidv4 } = await import('uuid');
   const id = uuidv4();
   const hashed = await bcrypt.hash(password, 10);
   const isAdmin = opts.isAdmin ? 1 : 0;

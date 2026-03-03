@@ -2,6 +2,15 @@
 const express = require('express');
 const session = require('express-session');
 const path = require('path');
+// Use a production-ready session store (sqlite-backed) instead of the default MemoryStore
+let SQLiteStore;
+try {
+	// `connect-sqlite3` exports a function that accepts the session module
+	SQLiteStore = require('connect-sqlite3')(session);
+} catch (e) {
+	// If the dependency is not installed, fall back to memory store but log a clear warning
+	console.warn('connect-sqlite3 not installed; using MemoryStore. Install connect-sqlite3 for production session storage.');
+}
 
 // Initialize DB and migrations
 const db = require('./db');
@@ -11,15 +20,24 @@ const app = express();
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-const SESSION_SECRET = process.env.SESSION_SECRET || 'dev-session-secret-change-me';
-app.use(
-	session({
-		secret: SESSION_SECRET,
-		resave: false,
-		saveUninitialized: false,
-		cookie: { secure: process.env.NODE_ENV === 'production', sameSite: 'lax', path: '/' },
-	})
-);
+const SESSION_SECRET = process.env.SESSION_SECRET || 'e52a55d2-5c36-4bb7-9752-6b84e58a8d7b';
+// If running in production, require an explicit SESSION_SECRET and prefer a persistent store
+if (process.env.NODE_ENV === 'production' && SESSION_SECRET === 'e52a55d2-5c36-4bb7-9752-6b84e58a8d7b') {
+	console.error('Running in production with default SESSION_SECRET; set SESSION_SECRET env var to a secure value.');
+}
+const sessionOptions = {
+	secret: SESSION_SECRET,
+	resave: false,
+	saveUninitialized: false,
+	cookie: { secure: process.env.NODE_ENV === 'production', sameSite: 'lax', path: '/' },
+};
+if (SQLiteStore) {
+	const sessionsDir = path.join(__dirname, '..', '..', 'database');
+	// Ensure directory exists
+	try { require('fs').mkdirSync(sessionsDir, { recursive: true }); } catch (e) {}
+	sessionOptions.store = new SQLiteStore({ db: 'sessions.sqlite', dir: sessionsDir });
+}
+app.use(session(sessionOptions));
 
 // Mount API routers
 app.use('/api/auth', require('../routes/auth'));

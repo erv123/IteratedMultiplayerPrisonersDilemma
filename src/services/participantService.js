@@ -1,4 +1,3 @@
-const { v4: uuidv4 } = require('uuid');
 const db = require('./dbWrapper');
 
 async function createParticipant(gameId, userId, username, isHost = false) {
@@ -7,6 +6,8 @@ async function createParticipant(gameId, userId, username, isHost = false) {
     if (!game) throw { code: 'NOT_FOUND', message: 'Game not found' };
     if (game.current_players >= game.max_players) throw { code: 'CONFLICT', message: 'Game is full' };
 
+    // dynamic import because `uuid` may be an ESM-only package
+    const { v4: uuidv4 } = await import('uuid');
     const participantId = uuidv4();
     await db.runAsync(
       `INSERT INTO participants (id, game_id, user_id, username, total_score, ready_for_next_turn, is_host, score_history)

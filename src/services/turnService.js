@@ -1,4 +1,3 @@
-const { v4: uuidv4 } = require('uuid');
 const db = require('./dbWrapper');
 
 async function saveChoice(gameId, turnNumber, playerId, targetId, choice) {
@@ -10,6 +9,8 @@ async function saveChoice(gameId, turnNumber, playerId, targetId, choice) {
     await db.runAsync('UPDATE turns SET choice = ? WHERE id = ?', [choice, existing.id]);
     return { success: true, id: existing.id };
   }
+  // dynamic import for uuid to support ESM-only package versions
+  const { v4: uuidv4 } = await import('uuid');
   const id = uuidv4();
   await db.runAsync(
     `INSERT INTO turns (id, game_id, turn_number, player_id, target_id, choice, created_at)

@@ -1,7 +1,8 @@
-const { v4: uuidv4 } = require('uuid');
 const db = require('./dbWrapper');
 
 async function createGame(payload, hostUser) {
+  // Use dynamic import for uuid (ESM-only in recent versions)
+  const { v4: uuidv4 } = await import('uuid');
   const id = uuidv4();
   const now = new Date().toISOString();
   const name = (payload.name || '').trim();
