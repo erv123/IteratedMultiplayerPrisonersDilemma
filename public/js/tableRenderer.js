@@ -132,6 +132,7 @@
   function buildCell(col, rowObj, rowIndex, colIndex){
     const raw = rowObj[col.key];
     const cellSpec = (raw && typeof raw === 'object' && raw.type) ? Object.assign({}, raw) : { type: (col.type || 'text'), value: raw };
+    // debug logging removed
     cellSpec._row = rowObj; cellSpec._col = col; cellSpec.rowMeta = rowObj && rowObj.meta ? rowObj.meta : null;
     const td = el('td'); applyCellClasses(td, cellSpec);
     if (col.className) td.classList.add(col.className);
@@ -167,6 +168,7 @@
 
   function createTable(container, schema, rows, options){
     const c = ensureEl(container);
+    // debug logging removed
     if (!c) throw new Error('Invalid container');
     const table = el('table'); table.className = 'tbl';
     if (options && options.tableClass) table.classList.add(options.tableClass);
@@ -215,6 +217,7 @@
     const table = c.querySelector('table.tbl') || (c.tagName === 'TABLE' ? c : null);
     if (!table) throw new Error('Table not found in container');
     const schema = { columns: Array.from(table.querySelectorAll('thead th')).map((th, i)=>({ key: th.getAttribute('data-key') || String(i), title: th.textContent || '' })) };
+    // debug logging removed
     // simple replace of tbody
     const oldTbody = table.querySelector('tbody'); if (oldTbody) oldTbody.remove();
     const tbody = el('tbody');

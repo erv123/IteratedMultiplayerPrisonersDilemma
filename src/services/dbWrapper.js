@@ -1,19 +1,50 @@
 const db = require('../server/db');
-const util = require('util');
 
-const getAsync = util.promisify(db.get.bind(db));
-const allAsync = util.promisify(db.all.bind(db));
-const runAsync = function (sql, params = []) {
-  return new Promise((resolve, reject) => {
+// Generic retry helper for SQLITE_BUSY
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+async function withRetry(fn, opts = {}) {
+  const retries = typeof opts.retries === 'number' ? opts.retries : 6;
+  const base = typeof opts.base === 'number' ? opts.base : 20; // ms
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      return await fn();
+    } catch (err) {
+      const isBusy = err && (err.code === 'SQLITE_BUSY' || (err.message && err.message.indexOf('SQLITE_BUSY') >= 0));
+      if (!isBusy || attempt === retries) throw err;
+      // exponential backoff with jitter
+      const wait = Math.round(base * Math.pow(2, attempt) + Math.random() * base);
+      await sleep(wait);
+    }
+  }
+}
+
+// Wrap common SQLite operations with retry logic to handle transient locks.
+function getAsync(sql, params = []) {
+  return withRetry(() => new Promise((resolve, reject) => {
+    db.get(sql, params, (err, row) => { if (err) return reject(err); resolve(row); });
+  }));
+}
+
+function allAsync(sql, params = []) {
+  return withRetry(() => new Promise((resolve, reject) => {
+    db.all(sql, params, (err, rows) => { if (err) return reject(err); resolve(rows); });
+  }));
+}
+
+function runAsync(sql, params = []) {
+  return withRetry(() => new Promise((resolve, reject) => {
     db.run(sql, params, function (err) {
       if (err) return reject(err);
-      // `this` is the statement context
       resolve({ lastID: this.lastID, changes: this.changes });
     });
-  });
-};
+  }));
+}
 
-const execAsync = util.promisify(db.exec.bind(db));
+function execAsync(sql) {
+  return withRetry(() => new Promise((resolve, reject) => {
+    db.exec(sql, (err) => { if (err) return reject(err); resolve(); });
+  }));
+}
 
 let _inTransaction = false;
 let _spCounter = 0;

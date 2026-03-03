@@ -24,6 +24,11 @@
   --knob-bg: #ffffff;
   --knob-shadow: 0 2px 6px rgba(2,6,23,0.15);
   --on-toast: #ffffff;
+    --ui-modal-bg: var(--card);
+    --ui-bg-overlay: rgba(0,0,0,0.6);
+    --ui-toast-bg-info: var(--accent);
+    --ui-toast-bg-success: var(--success);
+    --ui-toast-bg-error: var(--danger);
   --ui-z-modal: 9000;
   --ui-z-toast: 9100;
   --glass: rgba(255,255,255,0.6);
@@ -122,6 +127,14 @@ button{background:var(--accent);color:var(--on-accent);border:0;padding:8px 12px
 button.secondary{background:var(--btn-secondary-bg);color:var(--accent)}
 button.danger{background:var(--danger)}
 button:disabled{opacity:0.55;cursor:not-allowed}
+
+/* Ensure secondary-styled buttons keep their appearance when disabled */
+button.secondary:disabled{
+  background:var(--btn-secondary-bg);
+  color:var(--accent);
+  cursor:not-allowed;
+  opacity:1;
+}
 
 input,select,textarea{padding:8px;border-radius:8px;border:1px solid var(--input-border);background:var(--input-bg);min-height:36px;color:var(--text)}
 label{display:block;margin-bottom:6px;color:var(--muted);font-size:0.9rem}
@@ -302,8 +315,15 @@ h5{margin:8px 0;color:var(--muted);font-size:0.95rem}
   --knob-bg:#11100d;
   --knob-shadow: 0 2px 6px rgba(0,0,0,0.4);
   --on-toast:#ffffff;
+  --ui-modal-bg: var(--card);
+  --ui-bg-overlay: rgba(0,0,0,0.6);
+  --ui-toast-bg-info: var(--accent);
+  --ui-toast-bg-success: var(--success);
+  --ui-toast-bg-error: var(--danger);
   --selected-peace-bg: #1f5f3d; --selected-peace-color:#fff;
   --selected-war-bg: #6f1616; --selected-war-color:#fff;
+  --disabled-bg:#978c5a;
+  --disabled-color:#666666;
 }
 :root[data-theme='light']{ /* explicit light fallback */
   --bg:#f6f7fb;

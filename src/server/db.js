@@ -14,6 +14,22 @@ const db = new sqlite3.Database(dbPath, sqlite3.OPEN_READWRITE | sqlite3.OPEN_CR
   }
 });
 
+// Improve concurrency behavior: set busy timeout and enable WAL journal mode.
+// Run PRAGMA statements inside serialize with callbacks to avoid uncaught
+// 'error' events emitted by Statement when errors occur (which surfaced
+// as an unhandled SQLITE_BUSY on some systems).
+db.serialize(() => {
+  db.run("PRAGMA busy_timeout = 5000", (err) => {
+    if (err) console.warn('Failed to set busy_timeout PRAGMA:', err && err.message ? err.message : err);
+  });
+  db.run("PRAGMA journal_mode = WAL", (err) => {
+    if (err) console.warn('Failed to set journal_mode PRAGMA:', err && err.message ? err.message : err);
+  });
+  db.run("PRAGMA synchronous = NORMAL", (err) => {
+    if (err) console.warn('Failed to set synchronous PRAGMA:', err && err.message ? err.message : err);
+  });
+});
+
 // Ensure foreign keys and run migrations if any
 // Expose a `migrationsReady` promise on the `db` object so callers can wait
 // until migrations complete before performing schema-dependent operations.

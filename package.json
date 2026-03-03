@@ -7,6 +7,7 @@
   "scripts": {
     "dev": "nodemon src/server/server.js",
     "start": "node src/server/server.js"
+    ,"test-resolve": "node tests/test_resolve.js"
   },
   "keywords": [],
   "author": "Ervins Roderts",

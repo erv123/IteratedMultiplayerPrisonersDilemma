@@ -90,18 +90,49 @@ router.post('/:participantId/submit', async (req, res) => {
     const participantId = req.params.participantId;
     const v = await verifyOwnership(req, participantId);
     if (!v.ok) return res.status(v.status).json({ success: false, error: v.error });
-    await participantService.markReady(participantId);
+    // ensure participant exists and determine game/turn context
     const part = await require('../services/dbWrapper').getAsync('SELECT game_id FROM participants WHERE id = ?', [participantId]);
     if (!part) return res.status(404).json({ success: false, error: { code: 'NOT_FOUND' } });
     const gameId = part.game_id;
+    const gameRow = await require('../services/dbWrapper').getAsync('SELECT current_turn, current_players FROM games WHERE id = ?', [gameId]);
+    const turnNumber = gameRow ? gameRow.current_turn : 0;
+
+    // Determine how many choice entries we expect for this player this turn
+    let expectedCount = null;
+    if (gameRow && typeof gameRow.current_players === 'number' && gameRow.current_players > 0) {
+      expectedCount = gameRow.current_players - 1; // one entry per other participant
+    } else {
+      const totalPlayersRow = await require('../services/dbWrapper').getAsync('SELECT COUNT(*) as totalPlayers FROM participants WHERE game_id = ?', [gameId]);
+      expectedCount = (totalPlayersRow && totalPlayersRow.totalPlayers) ? (totalPlayersRow.totalPlayers - 1) : 0;
+    }
+
+    const entryCountRow = await require('../services/dbWrapper').getAsync('SELECT COUNT(*) as cnt FROM turns WHERE game_id = ? AND player_id = ? AND turn_number = ?', [gameId, participantId, turnNumber]);
+    const entryCount = entryCountRow ? entryCountRow.cnt : 0;
+
+    // If the participant hasn't submitted all choices, return an error and don't mark ready
+    if (entryCount < expectedCount) {
+      return res.status(400).json({ success: false, error: { code: 'MISSING_CHOICES', message: 'Not all choices submitted', expected: expectedCount, found: entryCount } });
+    }
+
+    // Mark all of this participant's turn entries as ready for resolution (stage 1)
+    await require('../services/dbWrapper').runAsync('UPDATE turns SET resolution_stage = 1 WHERE game_id = ? AND player_id = ? AND turn_number = ?', [gameId, participantId, turnNumber]);
+
+    // Mark participant ready for next turn and possibly trigger resolution if everyone is ready
+    await participantService.markReady(participantId);
     const readyCountRow = await require('../services/dbWrapper').getAsync('SELECT SUM(ready_for_next_turn) as readyCount, count(*) as total FROM participants WHERE game_id = ?', [gameId]);
     if (readyCountRow && readyCountRow.readyCount === readyCountRow.total) {
       const resolveService = require('../services/resolveService');
-      await resolveService.resolveTurn(gameId, (await require('../services/dbWrapper').getAsync('SELECT current_turn FROM games WHERE id = ?', [gameId])).current_turn);
+      try {
+        await resolveService.resolveTurn(gameId);
+      } catch (e) {
+        console.error('[participants.submit] resolveTurn failed', e);
+        throw e;
+      }
     }
     return res.json({ success: true });
   } catch (err) {
-    return res.status(500).json({ success: false, error: { code: 'SERVER_ERROR', message: err.message } });
+    console.error('[participants.submit] handler error', err && (err.stack || err));
+    return res.status(500).json({ success: false, error: { code: 'SERVER_ERROR', message: err && err.message ? err.message : String(err) } });
   }
 });
 
@@ -127,17 +158,33 @@ router.get('/:participantId/opponentHistory', async (req, res) => {
       (oppHist || []).forEach(r => { byTurn[String(r.turnNumber)] = r; });
       opponentHistMap2[String(oid)] = byTurn;
     }
+
+    // fetch usernames for opponents in bulk so we can return names with the history
+    const nameMap = {};
+    if (opponentIds2.length) {
+      const placeholders = opponentIds2.map(() => '?').join(',');
+      const params = [p.game_id].concat(opponentIds2);
+      const rows = await require('../services/dbWrapper').allAsync(
+        `SELECT id, username FROM participants WHERE game_id = ? AND id IN (${placeholders})`,
+        params
+      ).catch(() => []);
+      (rows || []).forEach(r => { nameMap[String(r.id)] = r.username || String(r.id); });
+    }
+
     for (const entry of (participantHistory || [])) {
       const opponentId = entry.targetId;
       const turnNumber = entry.turnNumber;
       const oppByTurn = opponentHistMap2[String(opponentId)] || {};
       const oppRow = oppByTurn[String(turnNumber)] || null;
+      // Prefer the stored opponent_choice on the participant's own row if present,
+      // otherwise fall back to the opponent's applied choice lookup.
+      const opponentChoiceValue = (typeof entry.opponentChoice !== 'undefined' && entry.opponentChoice !== null) ? entry.opponentChoice : (oppRow ? oppRow.choice : null);
       results.push({
         participantId: participantId,
-        opponentId: opponentId,
+        opponentUsername: nameMap[String(opponentId)] || String(opponentId),
         turnNumber: turnNumber,
         appliedChoice: entry.choice,
-        opponentChoice: oppRow ? oppRow.choice : null,
+        opponentChoice: opponentChoiceValue,
         pointsAwarded: entry.pointsAwarded,
       });
     }

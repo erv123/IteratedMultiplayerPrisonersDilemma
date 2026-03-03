@@ -125,14 +125,16 @@ async function initLobby() {
         return;
       }
       const list = Array.isArray(res.data) ? res.data : [];
-      if (list.length === 0) {
+      // filter to only entries that are currently marked online
+      const onlineOnly = list.filter(u => u && (u.is_online === true || u.is_online === 1 || u.online === true));
+      if (onlineOnly.length === 0) {
         container.textContent = 'No players online';
         return;
       }
       container.innerHTML = '';
       const ul = document.createElement('ul');
       ul.style.margin = 0; ul.style.padding = '0 0 0 14px';
-      for (const u of list) {
+      for (const u of onlineOnly) {
         const li = document.createElement('li');
         li.textContent = u.username || String(u.id || '');
         ul.appendChild(li);

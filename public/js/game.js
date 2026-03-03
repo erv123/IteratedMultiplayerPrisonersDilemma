@@ -73,7 +73,7 @@
       const rows = Array.isArray(r.data) ? r.data : [];
       const map = {};
       rows.forEach(rr => {
-        const tid = rr.target_id !== undefined ? rr.target_id : (rr.targetId !== undefined ? rr.targetId : rr.targetId);
+        const tid = rr.targetId; // API returns `targetId`
         const choice = rr.choice;
         if (tid !== undefined && choice !== undefined) map[String(tid)] = choice;
       });
@@ -105,7 +105,7 @@
   function renderLeaderboard(players) {
     if (!Array.isArray(players) || players.length === 0) { leaderboardEl.textContent = '(no players yet)'; return; }
     // Build sorted array and render with TableRenderer (no fallback)
-    const arr = (players || []).slice().map(p => ({ id: p.id, name: p.username || p.user_id || p.id, score: Number(p.total_score != null ? p.total_score : (p.totalScore != null ? p.totalScore : 0)) })).sort((a,b)=> b.score - a.score);
+    const arr = (players || []).slice().map(p => ({ id: p.id, name: p.username, score: Number(p.total_score || 0) })).sort((a,b)=> b.score - a.score);
     const schema = { columns: [ { key: 'rank', title: '#' }, { key: 'player', title: 'Player' }, { key: 'score', title: 'Score' } ] };
     const rows = (arr || []).map((a, i) => {
       const topClass = i === 0 ? 'leader-top1' : i === 1 ? 'leader-top2' : i === 2 ? 'leader-top3' : null;
@@ -139,7 +139,10 @@
 
   function disableTurnUI() {
     document.querySelectorAll('.choice-btn').forEach(b => b.disabled = true);
-    if (endTurnBtn) endTurnBtn.disabled = true;
+    if (endTurnBtn) {
+      endTurnBtn.disabled = true;
+      try { endTurnBtn.classList.add('secondary'); } catch (e) {}
+    }
     try {
       const table = playerListEl && playerListEl.querySelector ? playerListEl.querySelector('table.tbl') : null;
       if (table) table.querySelectorAll('button').forEach(b => b.disabled = true);
@@ -147,7 +150,10 @@
   }
   function enableTurnUI() {
     document.querySelectorAll('.choice-btn').forEach(b => b.disabled = false);
-    if (endTurnBtn) endTurnBtn.disabled = false;
+    if (endTurnBtn) {
+      endTurnBtn.disabled = false;
+      try { endTurnBtn.classList.remove('secondary'); } catch (e) {}
+    }
     try {
       const table = playerListEl && playerListEl.querySelector ? playerListEl.querySelector('table.tbl') : null;
       if (table) table.querySelectorAll('button').forEach(b => b.disabled = false);
@@ -176,31 +182,36 @@
 
     // determine my participant id from latest players list and sessionUser
     if (sessionUser && sessionUser.id !== undefined && sessionUser.id !== null) {
-      const me = players.find(p => (p.user_id !== undefined && p.user_id !== null && String(p.user_id) === String(sessionUser.id)) || (p.username && sessionUser.username && String(p.username).trim().toLowerCase() === String(sessionUser.username).trim().toLowerCase()));
+      const me = players.find(p => (p.user_id !== undefined && p.user_id !== null && String(p.user_id) === String(sessionUser.id)) || (p.username && sessionUser.username && p.username === sessionUser.username));
       myParticipantId = me ? me.id : null;
     } else {
       myParticipantId = null;
     }
 
     // update ready header text
-    const readyCount = players.reduce((c,p)=> c + (Number(p.ready_for_next_turn||p.readyForNextTurn||0)===1 ? 1 : 0), 0);
+    const readyCount = players.reduce((c,p)=> c + (Number(p.ready_for_next_turn || 0) === 1 ? 1 : 0), 0);
     const totalPlayers = players.length;
 
     // Build opponents ordered by preference
     let opponents = (players || []).filter(p => String(p.id) !== String(myParticipantId)).slice();
     if (orderBy === 'alpha') {
-      opponents.sort((a,b) => String(a.username||a.user_id||a.id).localeCompare(String(b.username||b.user_id||b.id)));
+      opponents.sort((a,b) => String(a.username).localeCompare(String(b.username)));
     } else {
       opponents.sort((a,b) => {
-        const sa = Number(a.total_score != null ? a.total_score : (a.totalScore != null ? a.totalScore : 0));
-        const sb = Number(b.total_score != null ? b.total_score : (b.totalScore != null ? b.totalScore : 0));
+        const sa = Number(a.total_score || 0);
+        const sb = Number(b.total_score || 0);
         return sb - sa;
       });
     }
 
     // Build TableRenderer schema and rows: columns -> Player | Peace | War
     const schema = { columns: [ { key: 'player', title: 'Player' }, { key: 'peace', title: 'Peace' }, { key: 'war', title: 'War' } ] };
-    const rows = opponents.map(p => ({ playerId: p.id, player: p.username || p.user_id || p.id, peace: { type: 'button', value: { label: 'Peace' }, onClick: (e, ctx) => { selectChoice(ctx.row.playerId, 'peace'); } }, war: { type: 'button', value: { label: 'War' }, onClick: (e, ctx) => { selectChoice(ctx.row.playerId, 'war'); } } }));
+    const rows = opponents.map(p => ({
+      playerId: p.id,
+      player: p.username,
+      peace: { type: 'button', value: { label: 'Peace' }, className: ['choice-btn','peace-btn'], onClick: (e, ctx) => { selectChoice(ctx.row.playerId, 'peace'); } },
+      war: { type: 'button', value: { label: 'War' }, className: ['choice-btn','war-btn'], onClick: (e, ctx) => { selectChoice(ctx.row.playerId, 'war'); } }
+    }));
 
     try {
       if (!window.TableRenderer) throw new Error('TableRenderer unavailable');
@@ -329,69 +340,77 @@
         return;
       }
       const entries = fh.data || [];
+      console.debug('[renderTurnHistory] fetched entries count', Array.isArray(entries) ? entries.length : 0, 'participant', participantIdParam);
+      try { console.debug('[renderTurnHistory] full opponentHistory', entries); } catch (e) {}
       if (!entries || !entries.length) { historyContainer.innerHTML = '(no history yet)'; return; }
 
       // collect turns and opponent ids
         const turnSet = new Set();
         const oppSet = new Set();
+        // collect only opponent usernames (server guarantees `opponentUsername`)
         entries.forEach(e => {
-          const tn = e.turnNumber !== undefined && e.turnNumber !== null ? e.turnNumber : (e.turn_number !== undefined ? e.turn_number : null);
-          const oid = e.opponentId !== undefined && e.opponentId !== null ? e.opponentId : (e.targetId !== undefined && e.targetId !== null ? e.targetId : (e.target_id !== undefined ? e.target_id : null));
-          if (tn !== null) turnSet.add(Number(tn));
-          if (oid !== null) oppSet.add(String(oid));
+          const tn = e.turnNumber;
+          const ou = e.opponentUsername;
+          if (tn !== undefined && tn !== null) turnSet.add(Number(tn));
+          if (ou !== undefined && ou !== null) oppSet.add(String(ou));
         });
 
         const turns = Array.from(turnSet).sort((a,b)=>a-b);
+        console.debug('[renderTurnHistory] turns collected', turns);
         if (!turns.length) { historyContainer.innerHTML = '(no history yet)'; return; }
         // Display most recent turn on the left: create a descending-ordered turns array
         const turnsDesc = turns.slice().reverse();
 
-        // fetch participant usernames for opponents
-        const ids = Array.from(oppSet);
-        const nameFetches = ids.map(id => window.api.get(`/participants/${encodeURIComponent(id)}`).catch(() => null));
-        const nameResults = await Promise.all(nameFetches);
-        const nameMap = {};
-        ids.forEach((id, idx) => { const r = nameResults[idx]; nameMap[id] = (r && r.success && r.data && r.data.username) ? r.data.username : id; });
+        // Build a simple list of opponent names (server provides `opponentUsername`)
+        const oppNames = Array.from(oppSet);
+        try { console.debug('[renderTurnHistory] oppNames', oppNames); } catch (e) {}
 
-        // Build rows grouped by opponent
+        // Build rows grouped by opponent username (use the username string as the key)
         const rowsByOpp = {};
         entries.forEach(e => {
-          const oid = String(e.opponentId !== undefined && e.opponentId !== null ? e.opponentId : (e.targetId !== undefined && e.targetId !== null ? e.targetId : (e.target_id !== undefined ? e.target_id : '')));
-          if (!rowsByOpp[oid]) rowsByOpp[oid] = [];
-          rowsByOpp[oid].push(e);
+          const oppKey = String(e.opponentUsername);
+          if (!rowsByOpp[oppKey]) rowsByOpp[oppKey] = [];
+          rowsByOpp[oppKey].push(e);
         });
 
         // Build TableRenderer schema/rows for turn history (most recent left)
         // First column is opponent (flexible), subsequent turn columns use the turn number as the column title
         const cols = [{ key: 'opponent', title: 'Opponent' }].concat(turnsDesc.map((t, i) => ({ key: `t${i}`, title: `Turn: ${String(t)}` })));
-        let sortedOpp = ids.slice();
+        let sortedOpp = oppNames.slice();
         if (orderBy === 'score') {
           // fetch participant scores for this game and sort by score desc
           try {
             const pr = await window.api.get(`/games/${encodeURIComponent(gameId)}/participants`);
             const parts = (pr && pr.success && Array.isArray(pr.data)) ? pr.data : [];
             const scoreMap = {};
-            parts.forEach(p => { scoreMap[String(p.id)] = Number(p.total_score != null ? p.total_score : (p.totalScore != null ? p.totalScore : 0)); });
+            parts.forEach(p => { scoreMap[String(p.username)] = Number(p.total_score || 0); });
+            console.debug('[renderTurnHistory] scoreMap sample', scoreMap);
             sortedOpp.sort((a,b) => (scoreMap[String(b)] || 0) - (scoreMap[String(a)] || 0));
-          } catch (e) {
+            } catch (e) {
             // fallback to alphabetical if participants fetch fails
-            sortedOpp.sort((a,b)=> String(nameMap[a]).localeCompare(String(nameMap[b])));
+            sortedOpp.sort((a,b)=> String(a).localeCompare(String(b)));
           }
         } else {
-          sortedOpp.sort((a,b)=> String(nameMap[a]).localeCompare(String(nameMap[b])));
+          sortedOpp.sort((a,b)=> String(a).localeCompare(String(b)));
         }
-        const rowsData = sortedOpp.map(oid => {
-          const base = { opponent: nameMap[oid] || oid };
+        console.debug('[renderTurnHistory] sortedOpp count', sortedOpp.length, 'turnsDesc', turnsDesc);
+        const rowsData = sortedOpp.map(oppKey => {
+          console.debug('[renderTurnHistory] building row for opponent', oppKey);
+          const base = { opponent: oppKey };
           // iterate turnsDesc so the left-most column is the most recent turn
           turnsDesc.forEach((t, i) => {
-            const entry = (rowsByOpp[oid] || []).find(r => {
-              const rn = r.turnNumber !== undefined && r.turnNumber !== null ? r.turnNumber : (r.turn_number !== undefined ? r.turn_number : null);
-              return rn !== null && Number(rn) === Number(t);
+            console.debug('[renderTurnHistory] checking turn', t, 'for opponent', oppKey);
+            const entry = (rowsByOpp[oppKey] || []).find(r => {
+              const rn = r.turnNumber;
+              const nameMatch = (r.opponentUsername || '') === oppKey;
+              return rn !== undefined && Number(rn) === Number(t) && nameMatch;
             });
-            const myChoice = entry ? (entry.appliedChoice || entry.choice || entry.applied_choice || '') : '';
-            const oppChoice = entry ? (entry.opponentChoice || entry.opponent_choice || '') : '';
+            console.debug('[renderTurnHistory] matched entry', entry ? { turnNumber: entry.turnNumber, opponentUsername: entry.opponentUsername } : null);
+            const myChoice = entry ? (entry.appliedChoice || '') : '';
+            const oppChoice = entry ? (entry.opponentChoice || '') : '';
             const points = entry && (entry.pointsAwarded !== undefined && entry.pointsAwarded !== null) ? ` (${entry.pointsAwarded})` : '';
             const cellText = `${myChoice || ''}/${oppChoice || ''}${points}`;
+            console.debug('[renderTurnHistory] cell values', { myChoice, oppChoice, points, cellText });
             let cls = null;
             if (myChoice && oppChoice) {
               if (myChoice === 'war' && oppChoice === 'war') cls = 'cell-war-war';
@@ -408,7 +427,8 @@
 
         try {
             const snap = JSON.stringify({ turns: turnsDesc, rowsData });
-            if (snap === _prevHistoryHtml) return; _prevHistoryHtml = snap;
+            if (snap === _prevHistoryHtml) { console.debug('[renderTurnHistory] snapshot unchanged, skipping update'); return; }
+            _prevHistoryHtml = snap;
             if (!window.TableRenderer) throw new Error('TableRenderer not available');
             const schema = { columns: cols };
             const existingTable = historyContainer.querySelector('table.tbl');
@@ -419,9 +439,11 @@
               if (ths.length !== cols.length) recreate = true;
             }
             if (existingTable && !recreate) {
+              console.debug('[renderTurnHistory] updating existing table with rowsCount', rowsData.length);
               window.TableRenderer.updateRows(historyContainer, rowsData);
             } else {
               // create fresh table when none exists or column count changed
+              console.debug('[renderTurnHistory] creating new history table; cols', cols.length, 'rows', rowsData.length);
               historyContainer.innerHTML = '';
               window.TableRenderer.createTable(historyContainer, schema, rowsData, { compact: true, tableClass: 'history-table', autoSizeColumns: true, maxHeight: '360px' });
             }
@@ -504,7 +526,7 @@
     _prevTurn = currentTurn;
 
     // Build a compact players key to detect changes and avoid unnecessary redraws
-    const playersKey = (players || []).map(p => `${p.id}:${p.username||''}:${p.total_score||p.totalScore||0}:${p.ready_for_next_turn||p.readyForNextTurn||0}`).join('|');
+    const playersKey = (players || []).map(p => `${p.id}:${p.username || ''}:${p.total_score || 0}:${p.ready_for_next_turn || 0}`).join('|');
     const participantChanged = String(_prevParticipantId) !== String(myParticipantId);
     if (playersKey !== _prevPlayersKey || participantChanged) {
       await renderPlayers(players);
@@ -525,7 +547,7 @@
       try { const pr = await window.api.get(`/participants/${encodeURIComponent(myParticipantId)}`); if (pr && pr.success && pr.data) meRow = pr.data; } catch (e) { console.error('fetch participant detail failed', e); }
     }
     if (!meRow) meRow = players.find(p => p.id === myParticipantId);
-    const rawReady = meRow ? (meRow.ready_for_next_turn !== undefined ? meRow.ready_for_next_turn : (meRow.readyForNextTurn !== undefined ? meRow.readyForNextTurn : null)) : null;
+    const rawReady = meRow ? meRow.ready_for_next_turn : null;
     const myReady = rawReady === null ? null : (Number(rawReady) === 1 ? 1 : 0);
     // If participant ready-state changed, update UI and header. Also show waiting header when this participant is ready
     if (_prevReadyFlag !== myReady) {
@@ -566,8 +588,10 @@
   });
 
   // Back to info and logout
-  document.getElementById('backToInfoBtn').addEventListener('click', async () => { window.location.href = `/gameInfo?gameId=${encodeURIComponent(gameId)}`; });
-  document.getElementById('logoutBtn').addEventListener('click', async () => { await window.api.post('/auth/logout'); window.location.href = '/'; });
+  const backToInfoBtnEl = document.getElementById('backToInfoBtn');
+  if (backToInfoBtnEl) backToInfoBtnEl.addEventListener('click', async () => { window.location.href = `/gameInfo?gameId=${encodeURIComponent(gameId)}`; });
+  const logoutBtnEl = document.getElementById('logoutBtn');
+  if (logoutBtnEl) logoutBtnEl.addEventListener('click', async () => { await window.api.post('/auth/logout'); window.location.href = '/'; });
 
   // Initial
   (async function init() {
@@ -599,7 +623,7 @@
 
       // set initial change-tracking keys so the poller won't immediately re-render
       _prevTurn = currentTurn;
-      _prevPlayersKey = (info.players || []).map(p => `${p.id}:${p.username||''}:${p.total_score||p.totalScore||0}:${p.ready_for_next_turn||p.readyForNextTurn||0}`).join('|');
+      _prevPlayersKey = (info.players || []).map(p => `${p.id}:${p.username || ''}:${p.total_score || 0}:${p.ready_for_next_turn || 0}`).join('|');
       _prevParticipantId = myParticipantId;
       _prevButtonFormattingKey = JSON.stringify({ participantId: myParticipantId, choices: activeChoices || {}, turn: currentTurn });
 
@@ -608,7 +632,7 @@
         if (myParticipantId) {
           const pr = await window.api.get(`/participants/${encodeURIComponent(myParticipantId)}`);
           const meRow = (pr && pr.success && pr.data) ? pr.data : (info.players || []).find(p => p.id === myParticipantId) || null;
-          const rawReady = meRow ? (meRow.ready_for_next_turn !== undefined ? meRow.ready_for_next_turn : (meRow.readyForNextTurn !== undefined ? meRow.readyForNextTurn : null)) : null;
+          const rawReady = meRow ? meRow.ready_for_next_turn : null;
           const myReady = rawReady === null ? null : (Number(rawReady) === 1 ? 1 : 0);
           _prevReadyFlag = myReady;
           if (myReady === 1) disableTurnUI(); else if (myReady === 0) enableTurnUI();

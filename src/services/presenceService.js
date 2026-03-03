@@ -35,4 +35,12 @@ async function getOnline(thresholdSeconds = 120) {
   return rows || [];
 }
 
-module.exports = { markOnline, markOffline, touch, getOnline };
+// mark users who are still flagged online but whose last_action is older
+// than the given threshold (seconds) as offline
+async function enforceStale(thresholdSeconds = 300) {
+  const sql = `UPDATE user_presence SET is_online = 0, updated_at = datetime('now')
+    WHERE is_online = 1 AND (strftime('%s','now') - strftime('%s', last_action)) >= ?`;
+  await db.runAsync(sql, [Number(thresholdSeconds)]);
+}
+
+module.exports = { markOnline, markOffline, touch, getOnline, enforceStale };

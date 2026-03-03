@@ -61,5 +61,21 @@
 .tbl .tbl-action-btn.selected-peace{background:var(--selected-peace-bg);color:var(--selected-peace-color)}
 .tbl .tbl-action-btn.selected-war{background:var(--selected-war-bg);color:var(--selected-war-color)}
 
+/* Disabled table action buttons should use theme-aware disabled tokens */
+.tbl .tbl-action-btn:disabled{
+  /* Match the secondary button appearance but with disabled cursor */
+  background: var(--btn-secondary-bg);
+  color: var(--accent);
+  cursor: not-allowed;
+  opacity: 1;
+}
+
+/* If a selected button becomes disabled, ensure disabled look overrides selected visuals */
+.tbl .tbl-action-btn.selected-peace:disabled,
+.tbl .tbl-action-btn.selected-war:disabled{
+  background: var(--btn-secondary-bg) !important;
+  color: var(--accent) !important;
+}
+
 /* Generic scroll wrapper used by TableRenderer when maxHeight specified */
 .tbl-scroll-container{overflow-y:auto}
