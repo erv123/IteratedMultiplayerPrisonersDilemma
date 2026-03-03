@@ -138,6 +138,11 @@ dist
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
 
-#database  
-database/game.db
-database/sessions.sqlite
+# Database files (ignore generated DB files and SQLite WAL/SHM)
+database/**/*.db
+database/**/*.sqlite
+database/**/*.sqlite3
+database/**/*-wal
+database/**/*-shm
+database/**/*.db-wal
+database/**/*.db-shm

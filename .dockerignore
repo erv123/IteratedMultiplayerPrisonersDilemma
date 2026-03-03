@@ -5,8 +5,10 @@ npm-debug.log
 Dockerfile
 README.md
 tests
-tests/**
 *.log
 .env
 *.sqlite
 *.db
+# ignore sqlite auxiliary files
+*-wal
+*-shm
