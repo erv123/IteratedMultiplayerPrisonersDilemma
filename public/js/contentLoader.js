@@ -1,6 +1,9 @@
 async function loadContentFragment(fragmentId, containerId) {
   try {
-    const resp = await fetch('/content/gameinfo.html');
+    // File name on disk is `GameInfo.html` (capitalized). Try the canonical file first,
+    // fall back to lowercase for lenient setups.
+    let resp = await fetch('/content/GameInfo.html');
+    if (!resp.ok) resp = await fetch('/content/gameinfo.html');
     if (!resp.ok) throw new Error('Failed to fetch content');
     const text = await resp.text();
     const tmpl = document.createElement('div');

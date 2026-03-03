@@ -25,11 +25,21 @@ const SESSION_SECRET = process.env.SESSION_SECRET || 'e52a55d2-5c36-4bb7-9752-6b
 if (process.env.NODE_ENV === 'production' && SESSION_SECRET === 'e52a55d2-5c36-4bb7-9752-6b84e58a8d7b') {
 	console.error('Running in production with default SESSION_SECRET; set SESSION_SECRET env var to a secure value.');
 }
+// Allow explicit control over whether cookies are marked `Secure` (useful when running behind
+// a reverse proxy or when serving over HTTP during testing). Default: true in production.
+const cookieSecure = (typeof process.env.SESSION_COOKIE_SECURE !== 'undefined')
+	? String(process.env.SESSION_COOKIE_SECURE).toLowerCase() === 'true'
+	: (process.env.NODE_ENV === 'production');
+// If using secure cookies behind a proxy (e.g., nginx/Traefik), enable trust proxy
+if (cookieSecure && process.env.TRUST_PROXY) {
+	app.set('trust proxy', 1);
+}
+
 const sessionOptions = {
 	secret: SESSION_SECRET,
 	resave: false,
 	saveUninitialized: false,
-	cookie: { secure: process.env.NODE_ENV === 'production', sameSite: 'lax', path: '/' },
+	cookie: { secure: cookieSecure, sameSite: 'lax', path: '/' },
 };
 if (SQLiteStore) {
 	const sessionsDir = path.join(__dirname, '..', '..', 'database');

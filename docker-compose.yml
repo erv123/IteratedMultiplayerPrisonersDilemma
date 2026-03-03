@@ -1,0 +1,22 @@
+version: '3.8'
+
+services:
+  ipd:
+    build: .
+    image: prisonersdilemma:latest
+    ports:
+      - "3000:3000"
+    env_file:
+      - .env
+    environment:
+      # sensible defaults if not provided in .env
+      - NODE_ENV=production
+      - PORT=3000
+    volumes:
+      - ./database:/app/database
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:3000/api/auth/whoami || exit 1"]
+      interval: 30s
+      retries: 3
+      timeout: 5s
