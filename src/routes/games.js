@@ -16,7 +16,8 @@ router.post('/', gameCreateValidator, handleValidation, async (req, res) => {
     }
     return res.status(201).json({ success: true, data: result });
   } catch (err) {
-    return res.status(500).json({ success: false, error: { code: 'SERVER_ERROR', message: err.message } });
+    if (err && err.code === 'VALIDATION_ERROR') return res.status(400).json({ success: false, error: err });
+    return res.status(500).json({ success: false, error: { code: 'SERVER_ERROR', message: err && err.message ? err.message : String(err) } });
   }
 });
 

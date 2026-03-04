@@ -432,11 +432,20 @@
             if (!window.TableRenderer) throw new Error('TableRenderer not available');
             const schema = { columns: cols };
             const existingTable = historyContainer.querySelector('table.tbl');
-            // If an existing table has a different number of columns, recreate it so colgroup/widths match
+            // If an existing table has a different number of columns or different headers, recreate it
             let recreate = false;
             if (existingTable) {
               const ths = existingTable.querySelectorAll('thead th');
-              if (ths.length !== cols.length) recreate = true;
+              if (ths.length !== cols.length) {
+                recreate = true;
+              } else {
+                // If any header title changed (e.g. turn numbers), force recreate so headers update
+                for (let i = 0; i < ths.length; i++) {
+                  const existingTitle = (ths[i].textContent || '').trim();
+                  const expectedTitle = (cols[i] && cols[i].title) ? String(cols[i].title).trim() : '';
+                  if (existingTitle !== expectedTitle) { recreate = true; break; }
+                }
+              }
             }
             if (existingTable && !recreate) {
               console.debug('[renderTurnHistory] updating existing table with rowsCount', rowsData.length);

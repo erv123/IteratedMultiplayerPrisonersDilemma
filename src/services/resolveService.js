@@ -9,17 +9,51 @@ function flipChoice(choice) {
 }
 
 async function resolveTurn(gameId) {
-  return db.transaction(async () => {
+  // Acquire a lightweight DB-backed per-game lock to prevent concurrent resolves
+  // This uses a small table `resolve_locks(game_id PRIMARY KEY)` and attempts
+  // to insert a row for this game; if another process holds the lock the
+  // insert will fail and we retry with backoff.
+  const LOCK_TABLE_SQL = `CREATE TABLE IF NOT EXISTS resolve_locks (game_id TEXT PRIMARY KEY, created_at TEXT)`;
+  await db.execAsync(LOCK_TABLE_SQL);
+
+  async function acquireLock(maxRetries = 40) {
+    const base = 20; // ms
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+      try {
+        await db.runAsync("INSERT INTO resolve_locks (game_id, created_at) VALUES (?, datetime('now'))", [gameId]);
+        return true; // locked
+      } catch (err) {
+        // If constraint or busy, wait and retry
+        const isConflict = err && (err.code === 'SQLITE_CONSTRAINT' || (err.message && err.message.indexOf('UNIQUE') >= 0));
+        const isBusy = err && (err.code === 'SQLITE_BUSY' || (err.message && err.message.indexOf('SQLITE_BUSY') >= 0));
+        if (!isConflict && !isBusy) throw err;
+        // backoff with jitter
+        const wait = Math.round(base * Math.pow(2, Math.min(attempt, 6)) + Math.random() * base);
+        await new Promise(r => setTimeout(r, wait));
+        continue;
+      }
+    }
+    throw { code: 'LOCK_TIMEOUT', message: 'Failed to acquire resolve lock' };
+  }
+
+  async function releaseLock() {
+    try { await db.runAsync('DELETE FROM resolve_locks WHERE game_id = ?', [gameId]); } catch (e) { /* ignore */ }
+  }
+
+  await acquireLock();
+  try {
+    return await db.transaction(async () => {
     // Determine current turn from games table
-    const gameRow = await db.getAsync('SELECT current_turn, payoff_matrix, error_chance, end_chance FROM games WHERE id = ?', [gameId]);
+    const gameRow = await db.getAsync('SELECT current_turn, payoff_matrix, error_chance, end_chance, stage FROM games WHERE id = ?', [gameId]);
     if (!gameRow) throw { code: 'NOT_FOUND', message: 'Game not found' };
+    // Extra security: only allow resolving when game is in stage 2
+    if (typeof gameRow.stage === 'undefined' || Number(gameRow.stage) !== 2) {
+      throw { code: 'INVALID_STAGE', message: 'Game not in resolution stage' };
+    }
     const turnNumber = Number(gameRow.current_turn || 0);
     const errorChance = gameRow ? Number(gameRow.error_chance || 0) : 0;
     // Read and parse the game's payoff matrix later (after ensuring readiness)
-    let payoffMatrix = null;
 
-    // log raw payoff matrix for debugging
-    try { console.log('[resolveTurn] raw payoffMatrix:', payoffMatrix); } catch (e) { /* ignore */ }
 
     // Helper: writeAppliedChoice computes the applied choice for the given
     // turn id and writes only the `applied_choice` column. It does NOT set
@@ -72,12 +106,32 @@ async function resolveTurn(gameId) {
     const totalPlayersRow = await db.getAsync('SELECT COUNT(*) as totalPlayers FROM participants WHERE game_id = ?', [gameId]);
     const totalPlayers = totalPlayersRow ? Number(totalPlayersRow.totalPlayers || 0) : 0;
     const expectedEntries = totalPlayers * Math.max(0, totalPlayers - 1);
-    const readyEntriesRow = await db.getAsync('SELECT COUNT(*) as cnt FROM turns WHERE game_id = ? AND turn_number = ? AND resolution_stage = 1', [gameId, turnNumber]);
-    const readyEntries = readyEntriesRow ? Number(readyEntriesRow.cnt || 0) : 0;
-    if (readyEntries !== expectedEntries) {
-      throw { code: 'NOT_READY', message: 'Not all participants have submitted for this turn', expected: expectedEntries, found: readyEntries };
+    // Count submitted turns (choice IS NOT NULL) rather than resolution_stage so concurrent
+    // resolution progress doesn't cause intermittent NOT_READY failures.
+    const submittedEntriesRow = await db.getAsync('SELECT COUNT(*) as cnt FROM turns WHERE game_id = ? AND turn_number = ? AND choice IS NOT NULL', [gameId, turnNumber]);
+    const submittedEntries = submittedEntriesRow ? Number(submittedEntriesRow.cnt || 0) : 0;
+    if (submittedEntries !== expectedEntries) {
+      // Provide diagnostics: compute per-participant submission counts so caller can see who's missing
+      try {
+        const perPlayer = await db.allAsync(
+          `SELECT p.id as participantId, p.username as username, COUNT(t.id) as submissions
+           FROM participants p
+           LEFT JOIN turns t ON t.game_id = ? AND t.turn_number = ? AND t.player_id = p.id AND t.choice IS NOT NULL
+           WHERE p.game_id = ?
+           GROUP BY p.id`,
+          [gameId, turnNumber, gameId]
+        );
+        const missing = (perPlayer || []).map(pp => ({ participantId: pp.participantId, username: pp.username, submissions: Number(pp.submissions || 0), missing: Math.max(0, (totalPlayers - 1) - Number(pp.submissions || 0)) }));
+        throw { code: 'NOT_READY', message: 'Not all participants have submitted for this turn', expected: expectedEntries, found: submittedEntries, perParticipant: missing };
+      } catch (diagErr) {
+        // If diagnostic query fails, throw generic NOT_READY with counts
+        throw { code: 'NOT_READY', message: 'Not all participants have submitted for this turn', expected: expectedEntries, found: submittedEntries };
+      }
     }
+        let payoffMatrix = null;
 
+    // log raw payoff matrix value from DB for debugging (local variable is null until parsed)
+    
     // Load and parse payoff matrix now that we're certain resolution should proceed
     try {
       if (!gameRow || !gameRow.payoff_matrix) throw new Error('Missing payoff_matrix');
@@ -88,8 +142,9 @@ async function resolveTurn(gameId) {
       throw { code: 'CORRUPTED_GAME', message: 'Failed to read payoff matrix for game' };
     }
 
-    // Fetch all turns that are flagged for resolution (stage=1)
-    let turns = await db.allAsync('SELECT id, player_id, target_id, choice FROM turns WHERE game_id = ? AND turn_number = ? AND resolution_stage = 1 ORDER BY id', [gameId, turnNumber]);
+    // Fetch all submitted turns for this game/turn (regardless of resolution_stage).
+    // We'll attempt to process only those needing work; already-processed rows will be skipped.
+    let turns = await db.allAsync('SELECT id, player_id, target_id, choice FROM turns WHERE game_id = ? AND turn_number = ? AND choice IS NOT NULL ORDER BY id', [gameId, turnNumber]);
     if (!turns || turns.length === 0) throw { code: 'NO_DATA', message: 'No choices for turn' };
 
     // Prepare deltas accumulator
@@ -136,13 +191,38 @@ async function resolveTurn(gameId) {
       }
     }
 
-    // Apply participant score deltas and append to score_history
-    // Apply participant score deltas and append to score_history serially
+    // Apply participant score deltas and append to score_history.
+    // Process each participant fully before moving to the next one.
     for (const [participantId, delta] of deltas.entries()) {
+      // Check current score_history length for this participant.
+      const prow = await db.getAsync('SELECT score_history FROM participants WHERE id = ?', [participantId]);
+      if (!prow) continue; // participant not found, skip
+      let hist = [];
+      try { hist = JSON.parse(prow.score_history || '[]'); } catch (e) { hist = []; }
+      // Expected: before scoring turn `turnNumber`, player should have (turnNumber - 1) history entries.
+      // If they already have >= turnNumber entries, assume they've been scored; skip awarding points.
+      if (Array.isArray(hist) && hist.length >= Number(turnNumber)) {
+        // skip this participant
+        continue;
+      }
+      // Apply score delta and then append updated total to history
       await participantService.updateTotalScore(participantId, delta);
       const row = await db.getAsync('SELECT total_score FROM participants WHERE id = ?', [participantId]);
       const total = row ? row.total_score : 0;
       await participantService.appendScoreHistory(participantId, total);
+    }
+
+    // Before resetting ready flags and advancing the turn, verify that all
+    // participants have a score_history length equal to the current turnNumber.
+    // This ensures scoring completed for every player.
+    const partRows = await db.allAsync('SELECT id, score_history FROM participants WHERE game_id = ?', [gameId]);
+    for (const pr of (partRows || [])) {
+      let hist = [];
+      try { hist = JSON.parse(pr.score_history || '[]'); } catch (e) { hist = []; }
+      const histLen = Array.isArray(hist) ? hist.length : 0;
+      if (histLen !== Number(turnNumber)) {
+        throw { code: 'INCOMPLETE_SCORING', message: `Participant ${pr.id} score_history length ${histLen} does not match expected ${turnNumber}` };
+      }
     }
 
     // Reset ready flags and advance turn
@@ -160,6 +240,10 @@ async function resolveTurn(gameId) {
 
     return { success: true };
   });
+  } finally {
+    // always release the lock we acquired earlier
+    try { await releaseLock(); } catch (e) { /* ignore */ }
+  }
 }
 
 module.exports = { resolveTurn };

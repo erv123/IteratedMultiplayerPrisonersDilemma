@@ -37,7 +37,7 @@
       { label: 'Player: Peace', peace: { type: 'input', value: { value: 2, name: 'pp' } }, war: { type: 'input', value: { value: 0, name: 'pw' } } },
       { label: 'Player: War',  peace: { type: 'input', value: { value: 3, name: 'wp' } }, war: { type: 'input', value: { value: 1, name: 'ww' } } },
     ];
-    window.TableRenderer.createTable(container, schema, rows, { compact: true });
+    window.TableRenderer.createTable(container, schema, rows, { compact: true, tableClass: 'payoff-table' });
   }
 
   async function registerGame() {

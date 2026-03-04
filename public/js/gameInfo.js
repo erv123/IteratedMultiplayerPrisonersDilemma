@@ -111,12 +111,12 @@
       if (isInput) {
         const wrapper = document.createElement('div'); wrapper.style.display = 'flex'; wrapper.style.alignItems = 'center';
         const input = document.createElement('input'); input.className = 'game-setting-input'; input.disabled = !editable; input.value = String(valueText);
-        if (key) input.dataset.key = key;
+        if (key) { input.dataset.key = key; input.id = key; }
         const span = document.createElement('span'); span.className = 'percent-suffix'; span.textContent = '%';
         wrapper.appendChild(input); wrapper.appendChild(span); row.appendChild(wrapper);
       } else {
         const input = document.createElement('input'); input.className = 'game-setting-input'; input.disabled = !editable; input.value = String(valueText);
-        if (key) input.dataset.key = key;
+        if (key) { input.dataset.key = key; input.id = key; }
         row.appendChild(input);
       }
       frag.appendChild(row);
@@ -188,13 +188,20 @@
             const rowsData = matrix.map((r,ri) => {
               const obj = { label: `Player: ${rowLabels[ri] || ''}` };
               for (let ci = 0; ci < cols; ci++) {
-                obj[`c${ci}`] = { type: (editable ? 'input' : 'readonlyInput'), value: (r && r[ci] != null) ? r[ci] : '' };
+                // For 2x2 matrices, assign stable input names matching createGame (pp,pw,wp,ww)
+                if (editable && cols === 2 && matrix.length === 2) {
+                  const rowPrefix = ri === 0 ? 'p' : 'w';
+                  const colPrefix = ci === 0 ? 'p' : 'w';
+                  obj[`c${ci}`] = { type: 'input', value: { value: (r && r[ci] != null) ? r[ci] : '', name: `${rowPrefix}${colPrefix}` } };
+                } else {
+                  obj[`c${ci}`] = { type: (editable ? 'input' : 'readonlyInput'), value: (r && r[ci] != null) ? r[ci] : '' };
+                }
               }
               return obj;
             });
             const existingTable = c.querySelector('table.tbl');
             if (window.TableRenderer) {
-              // if editability changed since last render, recreate table to ensure cell types update
+              // If editability changed since last render, recreate table to ensure cell types update
               if (existingTable && lastPayoffEditable !== !!editable) {
                 c.innerHTML = '';
                 lastPayoffEditable = null;
@@ -268,51 +275,31 @@
         upd.appendChild(btn);
         gameSettingsEl.appendChild(upd);
         btn.addEventListener('click', async () => {
-          try {
+            try {
             btn.disabled = true;
-            // collect inputs by data-key
+            // collect inputs by explicit ids for simplicity
             const payload = {};
-            const inputs = gameSettingsEl.querySelectorAll('.game-setting-input');
-            inputs.forEach(i => {
-              const k = i.dataset && i.dataset.key;
-              if (!k) return;
-              const v = i.value;
-              if (k === 'historyLimit' || k === 'maxPlayers') payload[k] = Number(v || 0);
-              else if (k === 'endChance' || k === 'errorChance') payload[k] = Number(v || 0);
-              else payload[k] = v;
-            });
+            const hl = document.getElementById('historyLimit'); if (hl) payload.historyLimit = Number(hl.value || 0);
+            const mp = document.getElementById('maxPlayers'); if (mp) payload.maxPlayers = Number(mp.value || 0);
+            const ec = document.getElementById('endChance'); if (ec) payload.endChance = Number(ec.value || 0);
+            const erc = document.getElementById('errorChance'); if (erc) payload.errorChance = Number(erc.value || 0);
 
-            // collect payoff matrix if present
+            // collect payoff matrix if present — read inputs by explicit names (pp,pw,wp,ww) and avoid fallbacks
             const pm = document.getElementById('payoffMatrixDisplay');
             if (pm) {
-              const table = pm.querySelector('table');
-              const matrix = [];
-              if (table) {
-                const trs = table.querySelectorAll('tbody tr');
-                trs.forEach(tr => {
-                  const cells = tr.querySelectorAll('td');
-                  // skip first label cell
-                  const row = [];
-                  for (let ci = 1; ci < cells.length; ci++) {
-                    const inp = cells[ci].querySelector('input');
-                    row.push(inp ? (inp.value === '' ? '' : (isFinite(inp.value) ? Number(inp.value) : inp.value)) : cells[ci].textContent);
-                  }
-                  matrix.push(row);
-                });
-              } else {
-                // fallback: TableRenderer might render custom structure; try inputs under pm
-                const rows = pm.querySelectorAll('div.tr, tr');
-                if (rows && rows.length) {
-                  rows.forEach(r => {
-                    const ins = r.querySelectorAll('input');
-                    const row = [];
-                    // skip first input if it's the label
-                    ins.forEach((ii, idx) => { if (idx > 0) row.push(ii.value === '' ? '' : (isFinite(ii.value) ? Number(ii.value) : ii.value)); });
-                    if (row.length) matrix.push(row);
-                  });
-                }
+              const getInputVal = (name) => {
+                const sel = pm.querySelector(`input[name="${name}"]`);
+                if (!sel) return undefined;
+                const v = sel.value;
+                return v === '' ? '' : (isFinite(v) ? Number(v) : v);
+              };
+              const pp = getInputVal('pp');
+              const pw = getInputVal('pw');
+              const wp = getInputVal('wp');
+              const ww = getInputVal('ww');
+              if (pp !== undefined && pw !== undefined && wp !== undefined && ww !== undefined) {
+                payload.payoffMatrix = { peace_peace: pp, peace_war: pw, war_peace: wp, war_war: ww };
               }
-              if (matrix.length) payload.payoffMatrix = matrix;
             }
 
             const res = await window.api.post(`/games/${encodeURIComponent(gameId)}/updateSettings`, payload);

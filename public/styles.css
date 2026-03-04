@@ -141,6 +141,22 @@ label{display:block;margin-bottom:6px;color:var(--muted);font-size:0.9rem}
 
 .form-row{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:10px}
 
+/* Make inputs inside form-row fill the column but not grow unbounded */
+.form-row > div > input,
+.form-row > div > select,
+.form-row > div > textarea {
+  width: 100%;
+  box-sizing: border-box;
+  max-width: 120px; /* reasonable upper limit for desktop columns */
+}
+
+/* Allow very small screens to let inputs use full available width */
+@media (max-width:420px){
+  .form-row > div > input,
+  .form-row > div > select,
+  .form-row > div > textarea { max-width: 100%; }
+}
+
 #gamesContainer{display:flex;flex-direction:column;gap:10px}
 .game-card{display:flex;justify-content:space-between;align-items:center;padding:10px;border-radius:8px;background:var(--card);border:1px solid var(--muted-border)}
 
@@ -264,7 +280,7 @@ h5{margin:8px 0;color:var(--muted);font-size:0.95rem}
 
 /* Dark theme variables */
 @media (prefers-color-scheme: dark) {
-  :root[data-theme='auto']{
+  :root[data-theme='auto'], :root:not([data-theme]){
     --bg:#070603;
     --card:#0f0d08;
     --text:#f8f5e9;

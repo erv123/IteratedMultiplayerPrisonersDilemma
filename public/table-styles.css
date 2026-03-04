@@ -1,6 +1,11 @@
 /* Table Renderer styles: keep here to centralize all table-specific styling */
 .tbl{width:100%;border-collapse:collapse;font-family:inherit;background:var(--card);border:1px solid var(--muted-border);border-radius:8px;overflow:hidden}
 .tbl thead th{background:linear-gradient(180deg,rgba(0,0,0,0.02),rgba(0,0,0,0.01));padding:8px;text-align:left;font-weight:600;border-bottom:1px solid var(--muted-border)}
+/* Center payoff table column headers even when generic table headers are left-aligned */
+.tbl.payoff-table thead th,
+.payoff-table thead th {
+  text-align: center;
+}
 .tbl tbody td{padding:8px;border-top:1px solid var(--muted-border);vertical-align:middle}
 .tbl-row:nth-child(odd){background:transparent}
 .tbl-compact thead th,.tbl-compact tbody td{padding:6px}
@@ -20,10 +25,33 @@
 .bg-red{background:var(--cell-war-war-bg, #ffecec)}
 
 /* small responsive tweak */
-@media (max-width:600px){
+@media (max-width:800px){
   .tbl thead th{font-size:0.95rem}
   .tbl tbody td{font-size:0.95rem;padding:6px}
 }
+
+/* Narrow-screen tweaks for payoff table inputs to avoid oversized cells */
+@media (max-width:800px) {
+  .payoff-table td input,
+  .payoff-table td input.payoff-input,
+  .payoff-table td .readonly-input {
+    width: auto !important;
+    max-width: 72px;
+    display: block;
+    margin: 0 auto;
+    box-sizing: border-box;
+  }
+  .payoff-table td, .payoff-table th { padding: 4px; }
+}
+
+/* Prevent payoff/table inputs from becoming too large on wide layouts */
+.payoff-table td input,
+.payoff-table td .readonly-input {
+  max-width: 120px;
+}
+
+/* Constrain generic table inputs so they remain consistent */
+.tbl input, .tbl select, .tbl textarea { max-width: 320px; }
 
 /* Payoff table: make first column match header emphasis */
 .tbl tbody td.payoff-first-col{font-weight:600}

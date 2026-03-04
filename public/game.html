@@ -22,15 +22,19 @@
 
   <div class="page">
     <header class="topbar card" style="justify-content:space-between">
-      <div style="display:flex;gap:12px;align-items:center">
-        <div class="brand">Game: <strong><span id="gameId"></span></strong></div>
-        <div class="strong">Turn: <span id="turnDisplay"></span></div>
-        <div style="margin-left:12px">
-          <label for="orderToggle" class="muted">Order:</label>
-          <select id="orderToggle" aria-label="Order players and history">
-            <option value="score">By Score</option>
-            <option value="alpha">Alphabetical</option>
-          </select>
+      <div style="display:flex;flex-direction:column;gap:8px">
+        <div style="display:flex;gap:12px;align-items:center">
+          <div class="brand">Game: <strong><span id="gameId"></span></strong></div>
+        </div>
+        <div style="display:flex;gap:12px;align-items:center">
+          <div class="strong">Turn: <span id="turnDisplay"></span></div>
+          <div style="margin-left:12px">
+            <label for="orderToggle" class="muted">Order:</label>
+            <select id="orderToggle" aria-label="Order players and history">
+              <option value="score">By Score</option>
+              <option value="alpha">Alphabetical</option>
+            </select>
+          </div>
         </div>
       </div>
       <div style="display:flex;gap:10px;align-items:center">

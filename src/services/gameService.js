@@ -7,6 +7,7 @@ async function createGame(payload, hostUser) {
   const now = new Date().toISOString();
   const name = (payload.name || '').trim();
   if (!name) throw new Error('Game name required');
+  if (name.length > 40) throw { code: 'VALIDATION_ERROR', message: 'Game name must be 40 characters or fewer' };
   const stage = 1;
   const current_turn = 0;
   const end_chance = Number(payload.endChance || 0);

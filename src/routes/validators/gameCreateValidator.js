@@ -5,8 +5,24 @@ const gameCreateValidator = [
     .exists({ checkNull: true })
     .withMessage('payoffMatrix is required')
     .bail()
-    .custom(v => typeof v === 'object' && v !== null && !Array.isArray(v))
-    .withMessage('payoffMatrix must be an object'),
+    .custom(v => {
+      if (typeof v !== 'object' || v === null || Array.isArray(v)) throw new Error('payoffMatrix must be an object');
+      const requiredKeys = ['peace_peace','peace_war','war_peace','war_war'];
+      for (const k of requiredKeys) {
+        if (!Object.prototype.hasOwnProperty.call(v, k)) throw new Error(`payoffMatrix missing key ${k}`);
+        const val = v[k];
+        // accept numeric values or numeric strings
+        if (typeof val === 'number') {
+          if (!Number.isFinite(val)) throw new Error(`payoffMatrix.${k} must be a finite number`);
+        } else if (typeof val === 'string') {
+          if (val.trim() === '' || Number.isNaN(Number(val))) throw new Error(`payoffMatrix.${k} must be a number`);
+        } else {
+          throw new Error(`payoffMatrix.${k} must be a number`);
+        }
+      }
+      return true;
+    })
+    .withMessage('payoffMatrix must be an object with numeric keys: peace_peace, peace_war, war_peace, war_war'),
 
   body('name')
     .exists({ checkNull: true, checkFalsy: true })
@@ -14,6 +30,9 @@ const gameCreateValidator = [
     .bail()
     .isString()
     .withMessage('name must be a string')
+    .bail()
+    .isLength({ max: 40 })
+    .withMessage('name must be at most 40 characters')
     .trim(),
 
   body('errorChance')
